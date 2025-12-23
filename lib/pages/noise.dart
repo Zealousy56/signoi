@@ -10,15 +10,30 @@ class NoisePage extends StatefulWidget {
 
 class _NoisePageState extends State<NoisePage> {
   final List<String> _items = List.generate(12, (i) => 'Noise ${i + 1}');
-  int _nextIndex = 13;
-
-  void _addItem() {
-    setState(() {
-      _items.insert(0, 'Noise ${_nextIndex++}');
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Added Noise ${_nextIndex - 1}')),
+  Future<void> _addItem() async {
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (context) {
+        final TextEditingController t = TextEditingController();
+        return AlertDialog(
+          title: const Text('Add noise'),
+          content: TextField(controller: t, autofocus: true, decoration: const InputDecoration(hintText: 'Title')),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(context, t.text.trim()), child: const Text('Add')),
+          ],
+        );
+      },
     );
+    if (!mounted) return;
+    if (result != null && result.isNotEmpty) {
+      setState(() {
+        _items.insert(0, result);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Added Noise: $result')),
+      );
+    }
   }
 
   @override
@@ -38,12 +53,11 @@ class _NoisePageState extends State<NoisePage> {
           return ListTile(
             leading: CircleAvatar(child: Text('$itemNumber')),
             title: Text(itemText),
-            subtitle: const Text('Tap to view details'),
             onTap: () async {
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => DetailPage(item: itemText, index: index),
+                  builder: (context) => DetailPage(item: itemText, index: index, allowAddTasks: false),
                 ),
               );
 

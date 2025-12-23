@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 class DetailPage extends StatefulWidget {
   final String item;
   final int index;
-  const DetailPage({super.key, required this.item, required this.index});
+  final bool allowAddTasks;
+  const DetailPage({super.key, required this.item, required this.index, this.allowAddTasks = true});
 
   @override
   State<DetailPage> createState() => _DetailPageState();
@@ -55,24 +56,26 @@ class _DetailPageState extends State<DetailPage> {
       appBar: AppBar(
         titleSpacing: 0.0,
         centerTitle: false,
-        title: _isEditing
-            ? SizedBox(
-                width: double.infinity,
-                child: TextField(
-                  controller: _controller,
-                  focusNode: _titleFocusNode,
-                  style: const TextStyle(color: Color.fromARGB(255, 0, 0, 0), fontSize: 20.0),
-                  decoration: const InputDecoration.collapsed(hintText: 'Title'),
-                  textInputAction: TextInputAction.done,
-                  maxLines: 1,
-                  onSubmitted: (_) => _save(),
-                ),
-              )
-            : Text(
-                _controller.text,
-                overflow: TextOverflow.ellipsis,
-                maxLines: 1,
-              ),
+        title: widget.allowAddTasks
+            ? (_isEditing
+                ? SizedBox(
+                    width: double.infinity,
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _titleFocusNode,
+                      style: const TextStyle(color: Color.fromARGB(255, 0, 0, 0), fontSize: 20.0),
+                      decoration: const InputDecoration.collapsed(hintText: 'Title'),
+                      textInputAction: TextInputAction.done,
+                      maxLines: 1,
+                      onSubmitted: (_) => _save(),
+                    ),
+                  )
+                : Text(
+                    _controller.text,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                  ))
+            : const SizedBox.shrink(),
         actions: [
           IconButton(
             icon: Icon(_isEditing ? Icons.check : Icons.edit),
@@ -118,36 +121,52 @@ class _DetailPageState extends State<DetailPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(),
-            const SizedBox(height: 12),
-            const Text('Tasks'),
-            const SizedBox(height: 8),
-            Expanded(
-                child: _subNotes.isEmpty
-                  ? const Center(child: Text('No tasks yet'))
-                  : ListView.separated(
-                      itemCount: _subNotes.length,
-                      separatorBuilder: (context, index) => const Divider(height: 1),
-                      itemBuilder: (context, index) {
-                        final note = _subNotes[index];
-                        return ListTile(
-                          title: Text(note['text'] as String),
-                          trailing: Checkbox(
-                            value: note['checked'] as bool,
-                            onChanged: (v) {
-                              setState(() {
-                                note['checked'] = v ?? false;
-                              });
-                            },
-                          ),
-                        );
-                      },
+            if (!widget.allowAddTasks) ...[
+              _isEditing
+                  ? TextField(
+                      controller: _controller,
+                      focusNode: _titleFocusNode,
+                      style: const TextStyle(fontSize: 28.0, fontWeight: FontWeight.bold),
+                      decoration: const InputDecoration(border: InputBorder.none),
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => _save(),
+                    )
+                  : Text(
+                      _controller.text,
+                      style: const TextStyle(fontSize: 28.0, fontWeight: FontWeight.bold),
                     ),
-            ),
+              const SizedBox(height: 12),
+            ] else ...[
+              const SizedBox(),
+              const SizedBox(height: 12),
+              const Text('Tasks'),
+              const SizedBox(height: 8),
+              Expanded(
+                  child: _subNotes.isEmpty
+                      ? const Center(child: Text('No tasks yet'))
+                      : ListView.separated(
+                          itemCount: _subNotes.length,
+                          separatorBuilder: (context, index) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final note = _subNotes[index];
+                            return ListTile(
+                              title: Text(note['text'] as String),
+                              trailing: Checkbox(
+                                value: note['checked'] as bool,
+                                onChanged: (v) {
+                                  setState(() {
+                                    note['checked'] = v ?? false;
+                                  });
+                                },
+                              ),
+                            );
+                          },
+                        )),
+            ],
           ],
         ),
       ),
-      floatingActionButton: _isEditing
+      floatingActionButton: _isEditing && widget.allowAddTasks
           ? FloatingActionButton(
               onPressed: () async {
                 final result = await showDialog<String?>(

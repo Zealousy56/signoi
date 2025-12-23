@@ -47,7 +47,7 @@ class _RootPageState extends State<RootPage> {
         currentIndex: _currentIndex,
         onTap: _onTap,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.wifi), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.wifi), label: 'Signal'),
           BottomNavigationBarItem(icon: Icon(Icons.graphic_eq), label: 'Noise'),
           BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: 'Progress'),
         ],
