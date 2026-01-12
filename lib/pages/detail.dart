@@ -3,8 +3,17 @@ import 'package:flutter/material.dart';
 class DetailPage extends StatefulWidget {
   final String item;
   final int index;
+  final List<Map<String, dynamic>> subNotes;
   final bool allowAddTasks;
-  const DetailPage({super.key, required this.item, required this.index, this.allowAddTasks = true});
+  final String taskType;
+  const DetailPage({
+    super.key,
+    required this.item,
+    required this.index,
+    this.subNotes = const <Map<String, dynamic>>[],
+    this.allowAddTasks = true,
+    this.taskType = 'temporary',
+  });
 
   @override
   State<DetailPage> createState() => _DetailPageState();
@@ -15,7 +24,7 @@ class _DetailPageState extends State<DetailPage> {
   late FocusNode _titleFocusNode;
   bool _isEditing = false;
   void _onControllerChanged() => setState(() {});
-  final List<Map<String, dynamic>> _subNotes = [];
+  late List<Map<String, dynamic>> _subNotes;
 
   @override
   void initState() {
@@ -23,6 +32,13 @@ class _DetailPageState extends State<DetailPage> {
     _controller = TextEditingController(text: widget.item);
     _titleFocusNode = FocusNode();
     _controller.addListener(_onControllerChanged);
+    _subNotes = widget.subNotes
+        .map((e) => {
+              'text': e['text'] ?? '',
+              'checked': e['checked'] ?? false,
+              'taskType': e['taskType'] ?? 'temporary',
+            })
+        .toList();
   }
 
   @override
@@ -144,54 +160,134 @@ class _DetailPageState extends State<DetailPage> {
               Expanded(
                   child: _subNotes.isEmpty
                       ? const Center(child: Text('No tasks yet'))
-                      : ListView.separated(
-                          itemCount: _subNotes.length,
-                          separatorBuilder: (context, index) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final note = _subNotes[index];
-                            return ListTile(
-                              title: Text(note['text'] as String),
-                              trailing: Checkbox(
-                                value: note['checked'] as bool,
-                                onChanged: (v) {
-                                  setState(() {
-                                    note['checked'] = v ?? false;
-                                  });
+                      : Builder(
+                          builder: (context) {
+                            // Sort tasks: daily first, then by checked status
+                            final sortedNotes = List<Map<String, dynamic>>.from(_subNotes)
+                              ..sort((a, b) {
+                                final aType = a['taskType'] as String? ?? 'temporary';
+                                final bType = b['taskType'] as String? ?? 'temporary';
+                                if (aType != bType) {
+                                  return aType == 'daily' ? -1 : 1;
+                                }
+                                return (a['checked'] == true ? 1 : 0).compareTo(b['checked'] == true ? 1 : 0);
+                              });
+                            
+                            return ListView.separated(
+                                itemCount: sortedNotes.length,
+                                separatorBuilder: (context, index) => const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final note = sortedNotes[index];
+                                  final taskType = note['taskType'] as String? ?? 'temporary';
+                                  return ListTile(
+                                    title: Text(note['text'] as String),
+                                    subtitle: Text(
+                                      taskType == 'daily' ? 'Daily' : 'Temporary',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: taskType == 'daily' ? Colors.blue : Colors.orange,
+                                      ),
+                                    ),
+                                    trailing: Checkbox(
+                                      value: note['checked'] as bool,
+                                      onChanged: (v) {
+                                        setState(() {
+                                          note['checked'] = v ?? false;
+                                        });
+                                      },
+                                    ),
+                                  );
                                 },
-                              ),
-                            );
+                              );
                           },
                         )),
+              if (_isEditing && widget.allowAddTasks) ...[
+                const SizedBox(height: 16),
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      final result = await showDialog<Map<String, String>?>(
+                        context: context,
+                        builder: (dialogContext) {
+                          final TextEditingController t = TextEditingController();
+                          String selectedTaskType = widget.taskType;
+                          return StatefulBuilder(
+                            builder: (context, setDialogState) {
+                              return AlertDialog(
+                                title: const Text('Add task'),
+                                content: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    TextField(
+                                      controller: t,
+                                      decoration: const InputDecoration(hintText: 'Task name'),
+                                      autofocus: true,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    const Text('Task type:', style: TextStyle(fontWeight: FontWeight.bold)),
+                                    RadioListTile<String>(
+                                      title: const Text('Daily'),
+                                      subtitle: const Text('Repeats every day'),
+                                      value: 'daily',
+                                      groupValue: selectedTaskType,
+                                      onChanged: (value) {
+                                        setDialogState(() {
+                                          selectedTaskType = value!;
+                                        });
+                                      },
+                                    ),
+                                    RadioListTile<String>(
+                                      title: const Text('Temporary'),
+                                      subtitle: const Text('One-time task'),
+                                      value: 'temporary',
+                                      groupValue: selectedTaskType,
+                                      onChanged: (value) {
+                                        setDialogState(() {
+                                          selectedTaskType = value!;
+                                        });
+                                      },
+                                    ),
+                                  ],
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(dialogContext),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(
+                                      dialogContext,
+                                      {'text': t.text.trim(), 'taskType': selectedTaskType},
+                                    ),
+                                    child: const Text('Add'),
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        },
+                      );
+                      if (result != null && result['text']!.isNotEmpty) {
+                        setState(() {
+                          _subNotes.add({
+                            'text': result['text']!,
+                            'checked': false,
+                            'taskType': result['taskType']!,
+                          });
+                        });
+                      }
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add Task'),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
             ],
           ],
         ),
       ),
-      floatingActionButton: _isEditing && widget.allowAddTasks
-          ? FloatingActionButton(
-              onPressed: () async {
-                final result = await showDialog<String?>(
-                  context: context,
-                  builder: (context) {
-                    final TextEditingController t = TextEditingController();
-                    return AlertDialog(
-                      title: const Text('Add task'),
-                      content: TextField(controller: t),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                        TextButton(onPressed: () => Navigator.pop(context, t.text.trim()), child: const Text('Add')),
-                      ],
-                    );
-                  },
-                );
-                if (result != null && result.isNotEmpty) {
-                  setState(() {
-                    _subNotes.add({'text': result, 'checked': false});
-                  });
-                }
-              },
-              child: const Icon(Icons.add),
-            )
-          : null,
       ),
     );
   }

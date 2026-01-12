@@ -64,43 +64,75 @@ class _NoisePageState extends State<NoisePage> {
         ],
       ),
       body: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8.0),
+        padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
         itemCount: _items.length,
-        separatorBuilder: (context, index) => const Divider(height: 1),
+        separatorBuilder: (context, index) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final itemNumber = index + 1;
           final itemText = _items[index];
-          return ListTile(
-            leading: CircleAvatar(child: Text('$itemNumber')),
-            title: Text(itemText),
-            onTap: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => DetailPage(item: itemText, index: index, allowAddTasks: false),
-                ),
-              );
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(16),
+              onTap: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => DetailPage(item: itemText, index: index, allowAddTasks: false),
+                  ),
+                );
 
-              if (result == null) return;
-              if (result is Map) {
-                if (result['deleted'] == true && result['index'] is int) {
-                  final delIndex = result['index'] as int;
-                  if (delIndex >= 0 && delIndex < _items.length) {
-                    setState(() {
-                      _items.removeAt(delIndex);
-                    });
-                  }
-                } else if (result['title'] is String && result['index'] is int) {
-                  final idx = result['index'] as int;
-                  final title = result['title'] as String;
-                  if (idx >= 0 && idx < _items.length) {
-                    setState(() {
-                      _items[idx] = title;
-                    });
+                if (result == null) return;
+                if (result is Map) {
+                  if (result['deleted'] == true && result['index'] is int) {
+                    final delIndex = result['index'] as int;
+                    if (delIndex >= 0 && delIndex < _items.length) {
+                      setState(() {
+                        _items.removeAt(delIndex);
+                      });
+                    }
+                  } else if (result['title'] is String && result['index'] is int) {
+                    final idx = result['index'] as int;
+                    final title = result['title'] as String;
+                    if (idx >= 0 && idx < _items.length) {
+                      setState(() {
+                        _items[idx] = title;
+                      });
+                    }
                   }
                 }
-              }
-            },
+              },
+              child: Card(
+                color: Colors.white,
+                elevation: 3,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      CircleAvatar(child: Text('$itemNumber')),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              itemText,
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           );
         },
       ),

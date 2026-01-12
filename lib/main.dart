@@ -4,6 +4,7 @@ import 'package:signoi/pages/noise.dart';
 import 'package:signoi/pages/progress.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -30,19 +31,30 @@ class RootPage extends StatefulWidget {
 
 class _RootPageState extends State<RootPage> {
   int _currentIndex = 0;
+  List<Map<String, dynamic>> _sharedItems =
+      List.generate(10, (i) => {
+            'title': 'Milestone ${i + 1}',
+            'subNotes': <Map<String, dynamic>>[],
+          });
 
-  static final List<Widget> _pages = <Widget>[
-    const HomePage(),
-    const NoisePage(),
-    const ProgressPage(),
-  ];
+  void _updateSharedItems(List<Map<String, dynamic>> newItems) {
+    setState(() {
+      _sharedItems = newItems;
+    });
+  }
 
   void _onTap(int index) => setState(() => _currentIndex = index);
 
   @override
   Widget build(BuildContext context) {
+    final List<Widget> pages = <Widget>[
+      HomePage(items: _sharedItems, onItemsChanged: _updateSharedItems),
+      const NoisePage(),
+      ProgressPage(items: _sharedItems, onItemsChanged: _updateSharedItems),
+    ];
+
     return Scaffold(
-      body: _pages[_currentIndex],
+      body: pages[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: _onTap,
