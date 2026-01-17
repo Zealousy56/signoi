@@ -171,6 +171,49 @@ class _ProgressPageState extends State<ProgressPage> {
                                         },
                                         tooltip: _editingCards.contains(index) ? 'Done' : 'Edit',
                                       ),
+                                      if (_editingCards.contains(index))
+                                        IconButton(
+                                          icon: const Icon(
+                                            Icons.delete,
+                                            size: 20,
+                                            color: Colors.red,
+                                          ),
+                                          onPressed: () async {
+                                            final shouldDelete = await showDialog<bool>(
+                                              context: context,
+                                              builder: (context) {
+                                                return AlertDialog(
+                                                  title: const Text('Delete Goal'),
+                                                  content: Text('Are you sure you want to delete "$title"?'),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(context, false),
+                                                      child: const Text('Cancel'),
+                                                    ),
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(context, true),
+                                                      style: TextButton.styleFrom(
+                                                        foregroundColor: Colors.red,
+                                                      ),
+                                                      child: const Text('Delete'),
+                                                    ),
+                                                  ],
+                                                );
+                                              },
+                                            );
+                                            if (shouldDelete == true) {
+                                              setState(() {
+                                                _items.removeAt(index);
+                                                widget.onItemsChanged(_items);
+                                                _editingCards.remove(index);
+                                                _titleControllers[index]?.dispose();
+                                                _titleControllers.remove(index);
+                                                _selectedStepIndices.remove(index);
+                                              });
+                                            }
+                                          },
+                                          tooltip: 'Delete Goal',
+                                        ),
                                     ],
                                   ),
                                   const SizedBox(height: 8),
