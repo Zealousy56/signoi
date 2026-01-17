@@ -98,11 +98,8 @@ class _ProgressPageState extends State<ProgressPage> {
                       final String title = item['title'] as String? ?? '';
                       final List<Map<String, dynamic>> rawSteps =
                           (item['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-                      final steps = List<Map<String, dynamic>>.from(rawSteps)
-                        ..sort((a, b) {
-                          // Sort by checked status (unchecked first)
-                          return (a['checked'] == true ? 1 : 0).compareTo(b['checked'] == true ? 1 : 0);
-                        });
+                      // Preserve user-defined order; do not sort when checking items
+                      final steps = List<Map<String, dynamic>>.from(rawSteps);
                       final int progress = item['progress'] as int? ?? 0;
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16.0),
