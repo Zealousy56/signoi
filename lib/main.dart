@@ -35,6 +35,8 @@ class _RootPageState extends State<RootPage> {
       List.generate(10, (i) => {
             'title': 'Milestone ${i + 1}',
             'subNotes': <Map<String, dynamic>>[],
+            'steps': <Map<String, dynamic>>[],
+            'progress': 0,
           });
 
   void _updateSharedItems(List<Map<String, dynamic>> newItems) {

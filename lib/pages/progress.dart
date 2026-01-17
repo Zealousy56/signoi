@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'detail.dart';
 
 class ProgressPage extends StatefulWidget {
   final List<Map<String, dynamic>> items;
@@ -13,11 +12,22 @@ class ProgressPage extends StatefulWidget {
 
 class _ProgressPageState extends State<ProgressPage> {
   late List<Map<String, dynamic>> _items;
+  final Set<int> _editingCards = {};
+  final Map<int, TextEditingController> _titleControllers = {};
+  final Map<int, Set<int>> _selectedStepIndices = {};
 
   @override
   void initState() {
     super.initState();
     _items = widget.items;
+  }
+
+  @override
+  void dispose() {
+    for (var controller in _titleControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   @override
@@ -60,101 +70,38 @@ class _ProgressPageState extends State<ProgressPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(height: 12),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text('Overview', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          ),
-          const SizedBox(height: 8),
-          const Center(
-            child: Icon(
-              Icons.show_chart,
-              size: 96,
-              color: Colors.green,
-            ),
-          ),
-          const SizedBox(height: 12),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16.0),
-            child: Text('Goals', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          ),
-          SizedBox(
-            height: 180,
+          Expanded(
             child: _items.isEmpty
                 ? const Center(child: Text('No goals yet'))
-                : ListView.separated(
-                    padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
-                    scrollDirection: Axis.horizontal,
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 12),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16.0),
+                        child: Text('Goals', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: PageView.builder(
+                    padEnds: true,
+                    pageSnapping: true,
                     itemCount: _items.length,
-                    separatorBuilder: (context, index) => const SizedBox(width: 12),
                     itemBuilder: (context, index) {
                       final item = _items[index];
                       final String title = item['title'] as String? ?? '';
-                      final List<Map<String, dynamic>> rawTasks =
-                          (item['subNotes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-                      final tasks = List<Map<String, dynamic>>.from(rawTasks)
+                      final List<Map<String, dynamic>> rawSteps =
+                          (item['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                      final steps = List<Map<String, dynamic>>.from(rawSteps)
                         ..sort((a, b) {
-                          // Sort by taskType first (daily before temporary)
-                          final aType = a['taskType'] as String? ?? 'daily';
-                          final bType = b['taskType'] as String? ?? 'daily';
-                          if (aType != bType) {
-                            return aType == 'daily' ? -1 : 1;
-                          }
-                          // Then sort by checked status
+                          // Sort by checked status (unchecked first)
                           return (a['checked'] == true ? 1 : 0).compareTo(b['checked'] == true ? 1 : 0);
                         });
-                      final previewTasks = tasks.take(2).toList();
-                      return SizedBox(
-                        width: 260,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () async {
-                            final result = await Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => DetailPage(
-                                  item: title,
-                                  index: index,
-                                  subNotes: rawTasks,
-                                  allowAddTasks: false,
-                                  taskType: 'daily',
-                                ),
-                              ),
-                            );
-
-                            if (result == null) return;
-                            if (result is Map) {
-                              if (result['deleted'] == true && result['index'] is int) {
-                                final delIndex = result['index'] as int;
-                                if (delIndex >= 0 && delIndex < _items.length) {
-                                  setState(() {
-                                    _items.removeAt(delIndex);
-                                    widget.onItemsChanged(_items);
-                                  });
-                                }
-                              } else if (result['title'] is String && result['index'] is int) {
-                                final idx = result['index'] as int;
-                                final titleResult = result['title'] as String;
-                                final List<Map<String, dynamic>> returnedSubNotes =
-                                    (result['subNotes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-                                if (idx >= 0 && idx < _items.length) {
-                                  setState(() {
-                                    _items[idx] = {
-                                      'title': titleResult,
-                                      'subNotes': returnedSubNotes
-                                          .map((e) => {
-                                                'text': e['text'] ?? '',
-                                                'checked': e['checked'] ?? false,
-                                                'taskType': e['taskType'] ?? 'daily',
-                                              })
-                                          .toList(),
-                                    };
-                                    widget.onItemsChanged(_items);
-                                  });
-                                }
-                              }
-                            }
-                          },
+                      final int progress = item['progress'] as int? ?? 0;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                        child: SizedBox(
+                          width: 300,
                           child: Card(
                             color: Colors.white,
                             elevation: 3,
@@ -164,75 +111,243 @@ class _ProgressPageState extends State<ProgressPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
-                                    title,
-                                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: _editingCards.contains(index)
+                                            ? TextField(
+                                                controller: _titleControllers.putIfAbsent(
+                                                  index,
+                                                  () => TextEditingController(text: title),
+                                                ),
+                                                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                                                decoration: const InputDecoration(
+                                                  border: OutlineInputBorder(),
+                                                  contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                                                ),
+                                                onSubmitted: (newTitle) {
+                                                  if (newTitle.trim().isNotEmpty) {
+                                                    setState(() {
+                                                      _items[index]['title'] = newTitle.trim();
+                                                      widget.onItemsChanged(_items);
+                                                      _editingCards.remove(index);
+                                                    });
+                                                  }
+                                                },
+                                              )
+                                            : Text(
+                                                title,
+                                                style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
+                                                overflow: TextOverflow.ellipsis,
+                                                maxLines: 1,
+                                              ),
+                                      ),
+                                      IconButton(
+                                        icon: Icon(
+                                          _editingCards.contains(index) ? Icons.check : Icons.edit,
+                                          size: 20,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            if (_editingCards.contains(index)) {
+                                              // Save the title when exiting edit mode
+                                              final newTitle = _titleControllers[index]?.text.trim() ?? '';
+                                              if (newTitle.isNotEmpty) {
+                                                _items[index]['title'] = newTitle;
+                                                widget.onItemsChanged(_items);
+                                              }
+                                              _editingCards.remove(index);
+                                              _titleControllers[index]?.dispose();
+                                              _titleControllers.remove(index);
+                                            } else {
+                                              _editingCards.add(index);
+                                              // Initialize controller with current title
+                                              _titleControllers[index] = TextEditingController(text: title)
+                                                ..selection = TextSelection.fromPosition(
+                                                  TextPosition(offset: title.length),
+                                                );
+                                            }
+                                          });
+                                        },
+                                        tooltip: _editingCards.contains(index) ? 'Done' : 'Edit',
+                                      ),
+                                    ],
                                   ),
                                   const SizedBox(height: 8),
-                                  if (tasks.isEmpty)
-                                    const Text('No tasks yet', style: TextStyle(color: Colors.grey))
-                                  else ...[
-                                    ...previewTasks.map((task) {
-                                      final done = task['checked'] == true;
-                                      final taskType = task['taskType'] as String? ?? 'daily';
-                                      return Padding(
-                                        padding: const EdgeInsets.symmetric(vertical: 2.0),
-                                        child: Row(
-                                          children: [
-                                            Icon(
-                                              done ? Icons.check_circle : Icons.radio_button_unchecked,
-                                              color: done ? Colors.green : (taskType == 'daily' ? Colors.blue : Colors.orange),
-                                              size: 16,
-                                            ),
-                                            const SizedBox(width: 6),
-                                            Expanded(
-                                              child: Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Text(
-                                                      task['text'] as String? ?? '',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        decoration: done
-                                                            ? TextDecoration.lineThrough
-                                                            : TextDecoration.none,
-                                                        color: done ? Colors.grey : Colors.black,
-                                                      ),
-                                                      overflow: TextOverflow.ellipsis,
-                                                      maxLines: 1,
-                                                    ),
-                                                  ),
-                                                  Text(
-                                                    taskType == 'daily' ? 'D' : 'T',
-                                                    style: TextStyle(
-                                                      fontSize: 10,
-                                                      fontWeight: FontWeight.bold,
-                                                      color: taskType == 'daily' ? Colors.blue : Colors.orange,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    }),
-                                    if (tasks.length > previewTasks.length)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 4.0),
-                                        child: Text(
-                                          '+${tasks.length - previewTasks.length} more',
-                                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: LinearProgressIndicator(
+                                          value: progress / 100,
+                                          backgroundColor: Colors.grey.shade200,
+                                          valueColor: AlwaysStoppedAnimation<Color>(
+                                            progress < 50 ? Colors.orange : Colors.green,
+                                          ),
                                         ),
                                       ),
-                                  ],
-                                  const Spacer(),
-                                  Align(
-                                    alignment: Alignment.bottomRight,
-                                    child: Icon(Icons.chevron_right, color: Colors.grey.shade700),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        '$progress%',
+                                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
                                   ),
+                                  const SizedBox(height: 8),
+                                  Expanded(
+                                    child: steps.isEmpty
+                                        ? const Center(child: Text('No steps yet', style: TextStyle(color: Colors.grey, fontSize: 16)))
+                                        : ListView.builder(
+                                            itemCount: steps.length,
+                                            itemBuilder: (context, stepIndex) {
+                                              final step = steps[stepIndex];
+                                              final done = step['checked'] == true;
+                                              final selectedSet = _selectedStepIndices[index] ?? {};
+                                              final isSelected = _editingCards.contains(index) && selectedSet.contains(stepIndex);
+                                              return Padding(
+                                                padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                                child: GestureDetector(
+                                                  onLongPress: _editingCards.contains(index)
+                                                      ? () {
+                                                          setState(() {
+                                                            _selectedStepIndices.putIfAbsent(index, () => {});
+                                                            if (_selectedStepIndices[index]!.contains(stepIndex)) {
+                                                              _selectedStepIndices[index]!.remove(stepIndex);
+                                                            } else {
+                                                              _selectedStepIndices[index]!.add(stepIndex);
+                                                            }
+                                                          });
+                                                        }
+                                                      : null,
+                                                  onTap: _editingCards.contains(index) && (_selectedStepIndices[index]?.isNotEmpty ?? false)
+                                                      ? () {
+                                                          setState(() {
+                                                            _selectedStepIndices.putIfAbsent(index, () => {});
+                                                            if (_selectedStepIndices[index]!.contains(stepIndex)) {
+                                                              _selectedStepIndices[index]!.remove(stepIndex);
+                                                            } else {
+                                                              _selectedStepIndices[index]!.add(stepIndex);
+                                                            }
+                                                          });
+                                                        }
+                                                      : null,
+                                                  child: Container(
+                                                    decoration: BoxDecoration(
+                                                      color: isSelected ? Colors.blue.withOpacity(0.2) : Colors.transparent,
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
+                                                    child: Row(
+                                                      children: [
+                                                        Icon(
+                                                          done ? Icons.check_circle : Icons.radio_button_unchecked,
+                                                          color: done ? Colors.green : Colors.blue,
+                                                          size: 16,
+                                                        ),
+                                                        const SizedBox(width: 6),
+                                                        Expanded(
+                                                          child: Text(
+                                                            step['text'] as String? ?? '',
+                                                            style: TextStyle(
+                                                              fontSize: 18,
+                                                              decoration: done
+                                                                  ? TextDecoration.lineThrough
+                                                                  : TextDecoration.none,
+                                                              color: done ? Colors.grey : Colors.black,
+                                                            ),
+                                                            overflow: TextOverflow.ellipsis,
+                                                            maxLines: 1,
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                  ),
+                                  if (_editingCards.contains(index))
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        if ((_selectedStepIndices[index]?.isNotEmpty ?? false))
+                                          TextButton.icon(
+                                            onPressed: () {
+                                              setState(() {
+                                                final currentSteps = (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                                                final selectedSet = _selectedStepIndices[index] ?? {};
+                                                // Remove steps in reverse order to avoid index issues
+                                                final sortedIndices = selectedSet.toList()..sort((a, b) => b.compareTo(a));
+                                                for (final stepIdx in sortedIndices) {
+                                                  if (stepIdx < currentSteps.length) {
+                                                    currentSteps.removeAt(stepIdx);
+                                                  }
+                                                }
+                                                _items[index]['steps'] = currentSteps;
+                                                widget.onItemsChanged(_items);
+                                                _selectedStepIndices[index]?.clear();
+                                              });
+                                            },
+                                            icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                                            label: Text('Delete (${_selectedStepIndices[index]?.length ?? 0})'),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: Colors.red,
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            ),
+                                          ),
+                                        const SizedBox(width: 8),
+                                        TextButton.icon(
+                                          onPressed: () async {
+                                        final result = await showDialog<String?>(
+                                          context: context,
+                                          builder: (context) {
+                                            final TextEditingController stepController = TextEditingController();
+                                            return AlertDialog(
+                                              title: const Text('Add Step'),
+                                              content: TextField(
+                                                controller: stepController,
+                                                autofocus: true,
+                                                decoration: const InputDecoration(
+                                                  labelText: 'Step description',
+                                                  hintText: 'What needs to be done?',
+                                                ),
+                                              ),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () => Navigator.pop(context),
+                                                  child: const Text('Cancel'),
+                                                ),
+                                                TextButton(
+                                                  onPressed: () {
+                                                    final text = stepController.text.trim();
+                                                    Navigator.pop(context, text);
+                                                  },
+                                                  child: const Text('Add'),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        );
+                                        if (result != null && result.isNotEmpty) {
+                                          setState(() {
+                                            final currentSteps = (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                                            currentSteps.add({
+                                              'text': result,
+                                              'checked': false,
+                                            });
+                                            _items[index]['steps'] = currentSteps;
+                                            widget.onItemsChanged(_items);
+                                          });
+                                        }
+                                      },
+                                      icon: const Icon(Icons.add, size: 18),
+                                      label: const Text('Add Step'),
+                                        style: TextButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        ),
+                                      ),
+                                      ],
+                                    ),
                                 ],
                               ),
                             ),
@@ -241,7 +356,86 @@ class _ProgressPageState extends State<ProgressPage> {
                       );
                     },
                   ),
+                        ),
+                    ],
+                  ),
           ),
+          const SizedBox(height: 16),
+          Center(
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                final result = await showDialog<Map<String, dynamic>?>(
+                  context: context,
+                  builder: (context) {
+                    final TextEditingController titleController = TextEditingController();
+                    final TextEditingController progressController = TextEditingController();
+                    return AlertDialog(
+                      title: const Text('Add goal'),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          TextField(
+                            controller: titleController,
+                            autofocus: true,
+                            decoration: InputDecoration(
+                              labelText: 'Goal title',
+                              hintText: 'What\'s your goal?',
+                              hintStyle: TextStyle(color: Colors.grey.shade400),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: progressController,
+                            keyboardType: TextInputType.number,
+                            decoration: InputDecoration(
+                              labelText: 'Target Time',
+                              hintText: 'How many days to achieve your goal?',
+                              hintStyle: TextStyle(color: Colors.grey.shade400),
+                            ),
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            final title = titleController.text.trim();
+                            final progressText = progressController.text.trim();
+                            int progress = int.tryParse(progressText) ?? 0;
+                            if (progress < 0) progress = 0;
+                            if (progress > 100) progress = 100;
+                            Navigator.pop(context, {
+                              'title': title,
+                              'progress': progress,
+                              'steps': <Map<String, dynamic>>[],
+                            });
+                          },
+                          child: const Text('Add'),
+                        ),
+                      ],
+                    );
+                  },
+                );
+                if (result != null && result['title'] != null && result['title'].toString().isNotEmpty) {
+                  setState(() {
+                    _items.add({
+                      'title': result['title'],
+                      'subNotes': <Map<String, dynamic>>[],
+                      'steps': result['steps'] ?? <Map<String, dynamic>>[],
+                      'progress': result['progress'] ?? 0,
+                    });
+                    widget.onItemsChanged(_items);
+                  });
+                }
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Add Goal'),
+            ),
+          ),
+          const SizedBox(height: 16),
         ],
       ),
     );

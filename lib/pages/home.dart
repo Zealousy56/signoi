@@ -50,7 +50,7 @@ class _HomePageState extends State<HomePage> {
       if (!mounted) return;
       if (result != null && result.isNotEmpty) {
         setState(() {
-          _items.insert(0, {'title': result, 'subNotes': <Map<String, dynamic>>[]});
+          _items.insert(0, {'title': result, 'subNotes': <Map<String, dynamic>>[], 'steps': <Map<String, dynamic>>[], 'progress': 0});
           widget.onItemsChanged(_items);
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -158,6 +158,8 @@ class _HomePageState extends State<HomePage> {
                                             'taskType': e['taskType'] ?? 'temporary',
                                           })
                                       .toList(),
+                                  'steps': _items[idx]['steps'] ?? <Map<String, dynamic>>[],
+                                  'progress': _items[idx]['progress'] ?? 0,
                                 };
                                 widget.onItemsChanged(_items);
                               });

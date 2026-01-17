@@ -58,15 +58,16 @@ class _DetailPageState extends State<DetailPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ignore: deprecated_member_use
-    return WillPopScope(
-      onWillPop: () async {
-        Navigator.pop(context, {
-          'index': widget.index,
-          'title': _controller.text,
-          'subNotes': _subNotes,
-        });
-        return false;
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          Navigator.pop(context, {
+            'index': widget.index,
+            'title': _controller.text,
+            'subNotes': _subNotes,
+          });
+        }
       },
       child: Scaffold(
       appBar: AppBar(
@@ -93,20 +94,6 @@ class _DetailPageState extends State<DetailPage> {
                   ))
             : const SizedBox.shrink(),
         actions: [
-          IconButton(
-            icon: Icon(_isEditing ? Icons.check : Icons.edit),
-            onPressed: () {
-              if (!_isEditing) {
-                setState(() {
-                  _isEditing = true;
-                });
-                _titleFocusNode.requestFocus();
-              } else {
-                _save();
-              }
-            },
-            tooltip: _isEditing ? 'Save' : 'Edit',
-          ),
           IconButton(
             icon: const Icon(Icons.delete),
             onPressed: () {
@@ -201,7 +188,7 @@ class _DetailPageState extends State<DetailPage> {
                               );
                           },
                         )),
-              if (_isEditing && widget.allowAddTasks) ...[
+              if (widget.allowAddTasks) ...[
                 const SizedBox(height: 16),
                 Center(
                   child: ElevatedButton.icon(
