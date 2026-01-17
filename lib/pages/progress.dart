@@ -15,6 +15,9 @@ class _ProgressPageState extends State<ProgressPage> {
   final Set<int> _editingCards = {};
   final Map<int, TextEditingController> _titleControllers = {};
   final Map<int, Set<int>> _selectedStepIndices = {};
+  final Map<String, int?> _editingStepIndex = {}; // key format: "cardIndex_stepIndex"
+  final Map<String, TextEditingController> _stepControllers = {};
+  final Map<int, Map<String, dynamic>> _originalState = {}; // Store original state when entering edit mode
 
   @override
   void initState() {
@@ -25,6 +28,9 @@ class _ProgressPageState extends State<ProgressPage> {
   @override
   void dispose() {
     for (var controller in _titleControllers.values) {
+      controller.dispose();
+    }
+    for (var controller in _stepControllers.values) {
       controller.dispose();
     }
     super.dispose();
@@ -161,6 +167,13 @@ class _ProgressPageState extends State<ProgressPage> {
                                               _titleControllers.remove(index);
                                             } else {
                                               _editingCards.add(index);
+                                              // Store original state
+                                              _originalState[index] = {
+                                                'title': title,
+                                                'steps': List<Map<String, dynamic>>.from(
+                                                  (item['steps'] as List?)?.cast<Map<String, dynamic>>() ?? []
+                                                ).map((s) => Map<String, dynamic>.from(s)).toList(),
+                                              };
                                               // Initialize controller with current title
                                               _titleControllers[index] = TextEditingController(text: title)
                                                 ..selection = TextSelection.fromPosition(
@@ -239,18 +252,48 @@ class _ProgressPageState extends State<ProgressPage> {
                                   Expanded(
                                     child: steps.isEmpty
                                         ? const Center(child: Text('No steps yet', style: TextStyle(color: Colors.grey, fontSize: 16)))
-                                        : ListView.builder(
-                                            itemCount: steps.length,
-                                            itemBuilder: (context, stepIndex) {
-                                              final step = steps[stepIndex];
-                                              final done = step['checked'] == true;
-                                              final selectedSet = _selectedStepIndices[index] ?? {};
-                                              final isSelected = _editingCards.contains(index) && selectedSet.contains(stepIndex);
-                                              return Padding(
-                                                padding: const EdgeInsets.symmetric(vertical: 2.0),
-                                                child: GestureDetector(
-                                                  onLongPress: _editingCards.contains(index)
-                                                      ? () {
+                                        : _editingCards.contains(index)
+                                            ? ReorderableListView.builder(
+                                              buildDefaultDragHandles: false,
+                                              itemCount: steps.length,
+                                              onReorder: (oldIndex, newIndex) {
+                                                  setState(() {
+                                                    final currentSteps = (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                                                    if (oldIndex < newIndex) {
+                                                      newIndex -= 1;
+                                                    }
+                                                    final item = currentSteps.removeAt(oldIndex);
+                                                    currentSteps.insert(newIndex, item);
+                                                    _items[index]['steps'] = currentSteps;
+                                                    widget.onItemsChanged(_items);
+                                                    // Clear any selections since indices changed
+                                                    _selectedStepIndices[index]?.clear();
+                                                  });
+                                                },
+                                                itemBuilder: (context, stepIndex) {
+                                                  final step = steps[stepIndex];
+                                                  final done = step['checked'] == true;
+                                                  final selectedSet = _selectedStepIndices[index] ?? {};
+                                                  final isSelected = selectedSet.contains(stepIndex);
+                                                  final editKey = '${index}_$stepIndex';
+                                                  final isEditingThisStep = _editingStepIndex[editKey.toString()] == stepIndex;
+                                                  return Padding(
+                                                    key: ValueKey('${index}_${step['text']}_$stepIndex'),
+                                                    padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                                    child: GestureDetector(
+                                                      onLongPress: () {
+                                                        setState(() {
+                                                          _selectedStepIndices.putIfAbsent(index, () => {});
+                                                          if (_selectedStepIndices[index]!.contains(stepIndex)) {
+                                                            _selectedStepIndices[index]!.remove(stepIndex);
+                                                          } else {
+                                                            _selectedStepIndices[index]!.add(stepIndex);
+                                                          }
+                                                        });
+                                                      },
+                                                      onTap: () {
+                                                        if ((_selectedStepIndices[index]?.isNotEmpty ?? false)) {
+                                                          // Selection mode - toggle selection
                                                           setState(() {
                                                             _selectedStepIndices.putIfAbsent(index, () => {});
                                                             if (_selectedStepIndices[index]!.contains(stepIndex)) {
@@ -259,87 +302,152 @@ class _ProgressPageState extends State<ProgressPage> {
                                                               _selectedStepIndices[index]!.add(stepIndex);
                                                             }
                                                           });
-                                                        }
-                                                      : null,
-                                                  onTap: _editingCards.contains(index) && (_selectedStepIndices[index]?.isNotEmpty ?? false)
-                                                      ? () {
+                                                        } else if (!isEditingThisStep) {
+                                                          // Edit mode - start editing this step
                                                           setState(() {
-                                                            _selectedStepIndices.putIfAbsent(index, () => {});
-                                                            if (_selectedStepIndices[index]!.contains(stepIndex)) {
-                                                              _selectedStepIndices[index]!.remove(stepIndex);
-                                                            } else {
-                                                              _selectedStepIndices[index]!.add(stepIndex);
-                                                            }
+                                                            _editingStepIndex[editKey] = stepIndex;
+                                                            _stepControllers[editKey] = TextEditingController(text: step['text'] as String? ?? '')
+                                                              ..selection = TextSelection.fromPosition(
+                                                                TextPosition(offset: (step['text'] as String? ?? '').length),
+                                                              );
                                                           });
                                                         }
-                                                      : null,
-                                                  child: Container(
-                                                    decoration: BoxDecoration(
-                                                      color: isSelected ? Colors.blue.withOpacity(0.2) : Colors.transparent,
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                    padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
-                                                    child: Row(
-                                                      children: [
-                                                        Icon(
-                                                          done ? Icons.check_circle : Icons.radio_button_unchecked,
-                                                          color: done ? Colors.green : Colors.blue,
-                                                          size: 16,
+                                                      },
+                                                      child: Container(
+                                                        decoration: BoxDecoration(
+                                                          color: isSelected ? Colors.blue.withOpacity(0.2) : Colors.transparent,
+                                                          borderRadius: BorderRadius.circular(4),
                                                         ),
-                                                        const SizedBox(width: 6),
-                                                        Expanded(
-                                                          child: Text(
-                                                            step['text'] as String? ?? '',
-                                                            style: TextStyle(
-                                                              fontSize: 18,
-                                                              decoration: done
-                                                                  ? TextDecoration.lineThrough
-                                                                  : TextDecoration.none,
-                                                              color: done ? Colors.grey : Colors.black,
+                                                        padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
+                                                        child: Row(
+                                                          children: [
+                                                            ReorderableDragStartListener(
+                                                              index: stepIndex,
+                                                              child: const Icon(
+                                                                Icons.drag_handle,
+                                                                color: Colors.grey,
+                                                                size: 16,
+                                                              ),
                                                             ),
-                                                            overflow: TextOverflow.ellipsis,
-                                                            maxLines: 1,
-                                                          ),
+                                                            const SizedBox(width: 6),
+                                                            Icon(
+                                                              done ? Icons.check_circle : Icons.radio_button_unchecked,
+                                                              color: done ? Colors.green : Colors.blue,
+                                                              size: 16,
+                                                            ),
+                                                            const SizedBox(width: 6),
+                                                            Expanded(
+                                                              child: isEditingThisStep
+                                                                  ? TextField(
+                                                                      controller: _stepControllers[editKey],
+                                                                      style: const TextStyle(fontSize: 18),
+                                                                      decoration: const InputDecoration(
+                                                                        border: OutlineInputBorder(),
+                                                                        contentPadding: EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                                                                        isDense: true,
+                                                                      ),
+                                                                      onSubmitted: (newText) {
+                                                                        if (newText.trim().isNotEmpty) {
+                                                                          setState(() {
+                                                                            final currentSteps = (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                                                                            if (stepIndex < currentSteps.length) {
+                                                                              currentSteps[stepIndex]['text'] = newText.trim();
+                                                                              _items[index]['steps'] = currentSteps;
+                                                                              widget.onItemsChanged(_items);
+                                                                            }
+                                                                            _editingStepIndex.remove(editKey);
+                                                                            _stepControllers[editKey]?.dispose();
+                                                                            _stepControllers.remove(editKey);
+                                                                          });
+                                                                        }
+                                                                      },
+                                                                    )
+                                                                  : Text(
+                                                                      step['text'] as String? ?? '',
+                                                                      style: TextStyle(
+                                                                        fontSize: 18,
+                                                                        decoration: done
+                                                                            ? TextDecoration.lineThrough
+                                                                            : TextDecoration.none,
+                                                                        color: done ? Colors.grey : Colors.black,
+                                                                      ),
+                                                                      overflow: TextOverflow.ellipsis,
+                                                                      maxLines: 1,
+                                                                    ),
+                                                            ),
+                                                            if (isEditingThisStep)
+                                                              IconButton(
+                                                                icon: const Icon(Icons.check, size: 16),
+                                                                onPressed: () {
+                                                                  final newText = _stepControllers[editKey]?.text.trim() ?? '';
+                                                                  if (newText.isNotEmpty) {
+                                                                    setState(() {
+                                                                      final currentSteps = (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                                                                      if (stepIndex < currentSteps.length) {
+                                                                        currentSteps[stepIndex]['text'] = newText;
+                                                                        _items[index]['steps'] = currentSteps;
+                                                                        widget.onItemsChanged(_items);
+                                                                      }
+                                                                      _editingStepIndex.remove(editKey);
+                                                                      _stepControllers[editKey]?.dispose();
+                                                                      _stepControllers.remove(editKey);
+                                                                    });
+                                                                  }
+                                                                },
+                                                                padding: EdgeInsets.zero,
+                                                                constraints: const BoxConstraints(),
+                                                              ),
+                                                          ],
                                                         ),
-                                                      ],
+                                                      ),
                                                     ),
-                                                  ),
-                                                ),
-                                              );
-                                            },
-                                          ),
+                                                  );
+                                                },
+                                              )
+                                            : ListView.builder(
+                                                itemCount: steps.length,
+                                                itemBuilder: (context, stepIndex) {
+                                                  final step = steps[stepIndex];
+                                                  final done = step['checked'] == true;
+                                                  return Padding(
+                                                    padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                                    child: Container(
+                                                      padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(
+                                                            done ? Icons.check_circle : Icons.radio_button_unchecked,
+                                                            color: done ? Colors.green : Colors.blue,
+                                                            size: 16,
+                                                          ),
+                                                          const SizedBox(width: 6),
+                                                          Expanded(
+                                                            child: Text(
+                                                              step['text'] as String? ?? '',
+                                                              style: TextStyle(
+                                                                fontSize: 18,
+                                                                decoration: done
+                                                                    ? TextDecoration.lineThrough
+                                                                    : TextDecoration.none,
+                                                                color: done ? Colors.grey : Colors.black,
+                                                              ),
+                                                              overflow: TextOverflow.ellipsis,
+                                                              maxLines: 1,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
                                   ),
                                   if (_editingCards.contains(index))
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        if ((_selectedStepIndices[index]?.isNotEmpty ?? false))
-                                          TextButton.icon(
-                                            onPressed: () {
-                                              setState(() {
-                                                final currentSteps = (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-                                                final selectedSet = _selectedStepIndices[index] ?? {};
-                                                // Remove steps in reverse order to avoid index issues
-                                                final sortedIndices = selectedSet.toList()..sort((a, b) => b.compareTo(a));
-                                                for (final stepIdx in sortedIndices) {
-                                                  if (stepIdx < currentSteps.length) {
-                                                    currentSteps.removeAt(stepIdx);
-                                                  }
-                                                }
-                                                _items[index]['steps'] = currentSteps;
-                                                widget.onItemsChanged(_items);
-                                                _selectedStepIndices[index]?.clear();
-                                              });
-                                            },
-                                            icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                                            label: Text('Delete (${_selectedStepIndices[index]?.length ?? 0})'),
-                                            style: TextButton.styleFrom(
-                                              foregroundColor: Colors.red,
-                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            ),
-                                          ),
-                                        const SizedBox(width: 8),
-                                        TextButton.icon(
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton.icon(
                                           onPressed: () async {
                                         final result = await showDialog<String?>(
                                           context: context,
@@ -389,7 +497,77 @@ class _ProgressPageState extends State<ProgressPage> {
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                         ),
                                       ),
-                                      ],
+                                      ),
+                                    ),
+                                  if (_editingCards.contains(index) && (_selectedStepIndices[index]?.isNotEmpty ?? false))
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton.icon(
+                                            onPressed: () {
+                                              setState(() {
+                                                final currentSteps = (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                                                final selectedSet = _selectedStepIndices[index] ?? {};
+                                                // Remove steps in reverse order to avoid index issues
+                                                final sortedIndices = selectedSet.toList()..sort((a, b) => b.compareTo(a));
+                                                for (final stepIdx in sortedIndices) {
+                                                  if (stepIdx < currentSteps.length) {
+                                                    currentSteps.removeAt(stepIdx);
+                                                  }
+                                                }
+                                                _items[index]['steps'] = currentSteps;
+                                                widget.onItemsChanged(_items);
+                                                _selectedStepIndices[index]?.clear();
+                                              });
+                                            },
+                                            icon: const Icon(Icons.delete, size: 18, color: Colors.red),
+                                            label: Text('Delete (${_selectedStepIndices[index]?.length ?? 0})'),
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: Colors.red,
+                                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                            ),
+                                          ),
+                                      ),
+                                    ),
+                                  if (_editingCards.contains(index))
+                                    Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: Center(
+                                        child: TextButton.icon(
+                                          onPressed: () {
+                                            setState(() {
+                                              // Restore original state
+                                              if (_originalState.containsKey(index)) {
+                                                _items[index]['title'] = _originalState[index]!['title'];
+                                                _items[index]['steps'] = _originalState[index]!['steps'];
+                                                widget.onItemsChanged(_items);
+                                              }
+                                              // Clean up
+                                              _editingCards.remove(index);
+                                              _titleControllers[index]?.dispose();
+                                              _titleControllers.remove(index);
+                                              _selectedStepIndices.remove(index);
+                                              _originalState.remove(index);
+                                              // Clean up any step controllers for this card
+                                              _editingStepIndex.removeWhere((key, value) => key.startsWith('${index}_'));
+                                              _stepControllers.removeWhere((key, controller) {
+                                                if (key.startsWith('${index}_')) {
+                                                  controller.dispose();
+                                                  return true;
+                                                }
+                                                return false;
+                                              });
+                                            });
+                                          },
+                                          icon: const Icon(Icons.cancel, size: 18),
+                                          label: const Text('Cancel Changes'),
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Colors.grey,
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                 ],
                               ),
