@@ -320,6 +320,7 @@ class _ProgressPageState extends State<ProgressPage> {
                                                         ),
                                                         padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
                                                         child: Row(
+                                                          crossAxisAlignment: CrossAxisAlignment.center,
                                                           children: [
                                                             ReorderableDragStartListener(
                                                               index: stepIndex,
@@ -414,6 +415,7 @@ class _ProgressPageState extends State<ProgressPage> {
                                                     child: Container(
                                                       padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
                                                       child: Row(
+                                                        crossAxisAlignment: CrossAxisAlignment.center,
                                                         children: [
                                                           Icon(
                                                             done ? Icons.check_circle : Icons.radio_button_unchecked,
@@ -433,6 +435,24 @@ class _ProgressPageState extends State<ProgressPage> {
                                                               ),
                                                               overflow: TextOverflow.ellipsis,
                                                               maxLines: 1,
+                                                            ),
+                                                          ),
+                                                          GestureDetector(
+                                                            onLongPress: () {
+                                                              setState(() {
+                                                                final currentSteps = (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                                                                if (stepIndex < currentSteps.length) {
+                                                                  final prev = currentSteps[stepIndex]['checked'] == true;
+                                                                  currentSteps[stepIndex]['checked'] = !prev;
+                                                                  _items[index]['steps'] = currentSteps;
+                                                                  widget.onItemsChanged(_items);
+                                                                }
+                                                              });
+                                                            },
+                                                            child: Icon(
+                                                              done ? Icons.check : Icons.remove,
+                                                              color: done ? Colors.green : Colors.grey,
+                                                              size: 18,
                                                             ),
                                                           ),
                                                         ],
