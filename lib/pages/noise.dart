@@ -98,17 +98,11 @@ class _NoisePageState extends State<NoisePage> {
                           CircleAvatar(child: Text('$itemNumber')),
                           const SizedBox(width: 12),
                           Expanded(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  itemText,
-                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
-                                ),
-                              ],
+                            child: Text(
+                              itemText,
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
                             ),
                           ),
                           Icon(_expandedCards.contains(index) ? Icons.expand_less : Icons.expand_more),

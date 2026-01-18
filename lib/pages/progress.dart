@@ -15,9 +15,9 @@ class _ProgressPageState extends State<ProgressPage> {
   final Set<int> _editingCards = {};
   final Map<int, TextEditingController> _titleControllers = {};
   final Map<int, Set<int>> _selectedStepIndices = {};
-  final Map<String, int?> _editingStepIndex = {}; // key format: "cardIndex_stepIndex"
+  final Map<String, int?> _editingStepIndex = {};
   final Map<String, TextEditingController> _stepControllers = {};
-  final Map<int, Map<String, dynamic>> _originalState = {}; // Store original state when entering edit mode
+  final Map<int, Map<String, dynamic>> _originalState = {};
 
   @override
   void initState() {
@@ -153,7 +153,6 @@ class _ProgressPageState extends State<ProgressPage> {
                                         onPressed: () {
                                           setState(() {
                                             if (_editingCards.contains(index)) {
-                                              // Save the title when exiting edit mode
                                               final newTitle = _titleControllers[index]?.text.trim() ?? '';
                                               if (newTitle.isNotEmpty) {
                                                 _items[index]['title'] = newTitle;
@@ -164,14 +163,12 @@ class _ProgressPageState extends State<ProgressPage> {
                                               _titleControllers.remove(index);
                                             } else {
                                               _editingCards.add(index);
-                                              // Store original state
                                               _originalState[index] = {
                                                 'title': title,
                                                 'steps': List<Map<String, dynamic>>.from(
                                                   (item['steps'] as List?)?.cast<Map<String, dynamic>>() ?? []
                                                 ).map((s) => Map<String, dynamic>.from(s)).toList(),
                                               };
-                                              // Initialize controller with current title
                                               _titleControllers[index] = TextEditingController(text: title)
                                                 ..selection = TextSelection.fromPosition(
                                                   TextPosition(offset: title.length),
@@ -312,7 +309,7 @@ class _ProgressPageState extends State<ProgressPage> {
                                                       },
                                                       child: Container(
                                                         decoration: BoxDecoration(
-                                                          color: isSelected ? Colors.blue.withOpacity(0.2) : Colors.transparent,
+                                                          color: isSelected ? const Color.fromARGB(51, 33, 150, 243) : Colors.transparent,
                                                           borderRadius: BorderRadius.circular(4),
                                                         ),
                                                         padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
@@ -554,19 +551,16 @@ class _ProgressPageState extends State<ProgressPage> {
                                         child: TextButton.icon(
                                           onPressed: () {
                                             setState(() {
-                                              // Restore original state
                                               if (_originalState.containsKey(index)) {
                                                 _items[index]['title'] = _originalState[index]!['title'];
                                                 _items[index]['steps'] = _originalState[index]!['steps'];
                                                 widget.onItemsChanged(_items);
                                               }
-                                              // Clean up
                                               _editingCards.remove(index);
                                               _titleControllers[index]?.dispose();
                                               _titleControllers.remove(index);
                                               _selectedStepIndices.remove(index);
                                               _originalState.remove(index);
-                                              // Clean up any step controllers for this card
                                               _editingStepIndex.removeWhere((key, value) => key.startsWith('${index}_'));
                                               _stepControllers.removeWhere((key, controller) {
                                                 if (key.startsWith('${index}_')) {

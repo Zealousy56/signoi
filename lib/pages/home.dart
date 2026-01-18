@@ -239,7 +239,7 @@ class _HomePageState extends State<HomePage> {
                                               },
                                               child: Container(
                                                 decoration: BoxDecoration(
-                                                  color: isSelected ? Colors.blue.withOpacity(0.2) : Colors.transparent,
+                                                  color: isSelected ? const Color.fromARGB(51, 33, 150, 243) : Colors.transparent,
                                                   borderRadius: BorderRadius.circular(4),
                                                 ),
                                                 padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
