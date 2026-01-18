@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'detail.dart';
 
 class NoisePage extends StatefulWidget {
   const NoisePage({super.key});
@@ -10,6 +9,7 @@ class NoisePage extends StatefulWidget {
 
 class _NoisePageState extends State<NoisePage> {
   final List<String> _items = List.generate(12, (i) => 'Noise ${i + 1}');
+  final Set<int> _expandedCards = {};
   Future<void> _addItem() async {
     final result = await showDialog<String?>(
       context: context,
@@ -74,33 +74,14 @@ class _NoisePageState extends State<NoisePage> {
             padding: const EdgeInsets.symmetric(vertical: 4.0),
             child: InkWell(
               borderRadius: BorderRadius.circular(16),
-              onTap: () async {
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => DetailPage(item: itemText, index: index, allowAddTasks: false),
-                  ),
-                );
-
-                if (result == null) return;
-                if (result is Map) {
-                  if (result['deleted'] == true && result['index'] is int) {
-                    final delIndex = result['index'] as int;
-                    if (delIndex >= 0 && delIndex < _items.length) {
-                      setState(() {
-                        _items.removeAt(delIndex);
-                      });
-                    }
-                  } else if (result['title'] is String && result['index'] is int) {
-                    final idx = result['index'] as int;
-                    final title = result['title'] as String;
-                    if (idx >= 0 && idx < _items.length) {
-                      setState(() {
-                        _items[idx] = title;
-                      });
-                    }
+              onTap: () {
+                setState(() {
+                  if (_expandedCards.contains(index)) {
+                    _expandedCards.remove(index);
+                  } else {
+                    _expandedCards.add(index);
                   }
-                }
+                });
               },
               child: Card(
                 color: Colors.white,
@@ -108,26 +89,75 @@ class _NoisePageState extends State<NoisePage> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      CircleAvatar(child: Text('$itemNumber')),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              itemText,
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          CircleAvatar(child: Text('$itemNumber')),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  itemText,
+                                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                          Icon(_expandedCards.contains(index) ? Icons.expand_less : Icons.expand_more),
+                        ],
                       ),
-                      const Icon(Icons.chevron_right),
+                      if (_expandedCards.contains(index)) ...[
+                        const SizedBox(height: 12),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton.icon(
+                            icon: const Icon(Icons.delete, size: 18),
+                            label: const Text('Delete'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                            ),
+                            onPressed: () async {
+                              final shouldDelete = await showDialog<bool>(
+                                context: context,
+                                builder: (context) {
+                                  return AlertDialog(
+                                    title: const Text('Delete Noise'),
+                                    content: Text('Are you sure you want to delete "$itemText"?'),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, false),
+                                        child: const Text('Cancel'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context, true),
+                                        style: TextButton.styleFrom(
+                                          foregroundColor: Colors.red,
+                                        ),
+                                        child: const Text('Delete'),
+                                      ),
+                                    ],
+                                  );
+                                },
+                              );
+                              if (shouldDelete == true) {
+                                setState(() {
+                                  _items.removeAt(index);
+                                  _expandedCards.remove(index);
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

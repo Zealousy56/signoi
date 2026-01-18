@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'detail.dart';
 
 class HomePage extends StatefulWidget {
   final List<Map<String, dynamic>> items;
@@ -14,11 +13,9 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   late List<Map<String, dynamic>> _items;
   final Set<int> _editingCards = {};
-  final Map<int, TextEditingController> _titleControllers = {};
   final Map<int, Set<int>> _selectedStepIndices = {};
   final Map<String, int?> _editingStepIndex = {};
   final Map<String, TextEditingController> _stepControllers = {};
-  final Map<int, Map<String, dynamic>> _originalState = {};
 
   @override
   void initState() {
@@ -28,9 +25,6 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
-    for (var controller in _titleControllers.values) {
-      controller.dispose();
-    }
     for (var controller in _stepControllers.values) {
       controller.dispose();
     }
@@ -46,7 +40,6 @@ class _HomePageState extends State<HomePage> {
       });
     }
   }
-  
 
   void _addItem() {
     // show dialog to enter custom title
@@ -163,7 +156,6 @@ class _HomePageState extends State<HomePage> {
                                       if (_editingCards.contains(index)) {
                                         _editingCards.remove(index);
                                         _selectedStepIndices.remove(index);
-                                        _originalState.remove(index);
                                         _editingStepIndex.removeWhere((key, value) => key.startsWith('${index}_'));
                                         _stepControllers.removeWhere((key, controller) {
                                           if (key.startsWith('${index}_')) {
