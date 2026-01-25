@@ -310,10 +310,13 @@ class _GoalListSectionState extends State<GoalListSection> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Icon(
-                    done ? Icons.check_circle : Icons.radio_button_unchecked,
-                    color: done ? Colors.green : Colors.blue,
-                    size: 16,
+                  GestureDetector(
+                    onTap: () => _toggleStepChecked(index, stepIndex),
+                    child: Icon(
+                      done ? Icons.check_circle : Icons.radio_button_unchecked,
+                      color: done ? Colors.green : Colors.blue,
+                      size: 16,
+                    ),
                   ),
                   const SizedBox(width: 6),
                   Expanded(
@@ -328,14 +331,6 @@ class _GoalListSectionState extends State<GoalListSection> {
                       ),
                       overflow: TextOverflow.ellipsis,
                       maxLines: 1,
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: () => _toggleStepChecked(index, stepIndex),
-                    child: Icon(
-                      done ? Icons.check : Icons.remove,
-                      color: done ? Colors.green : Colors.grey,
-                      size: 18,
                     ),
                   ),
                 ],

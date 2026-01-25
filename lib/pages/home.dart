@@ -491,7 +491,7 @@ class _HomePageState extends State<HomePage> {
                                         return Padding(
                                           padding: const EdgeInsets.symmetric(vertical: 2.0),
                                           child: GestureDetector(
-                                            onLongPress: () {
+                                            onTap: () {
                                               setState(() {
                                                 final currentTasks = (_items[index]['subNotes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
                                                 final taskIndex = currentTasks.indexWhere((t) => t['text'] == task['text']);
