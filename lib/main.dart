@@ -38,10 +38,17 @@ class _RootPageState extends State<RootPage> {
             'steps': <Map<String, dynamic>>[],
             'progress': 0,
           });
+  List<Map<String, dynamic>> _shortTermItems = <Map<String, dynamic>>[];
 
   void _updateSharedItems(List<Map<String, dynamic>> newItems) {
     setState(() {
       _sharedItems = newItems;
+    });
+  }
+
+  void _updateShortTermItems(List<Map<String, dynamic>> newItems) {
+    setState(() {
+      _shortTermItems = newItems;
     });
   }
 
@@ -52,7 +59,12 @@ class _RootPageState extends State<RootPage> {
     final List<Widget> pages = <Widget>[
       HomePage(items: _sharedItems, onItemsChanged: _updateSharedItems),
       const NoisePage(),
-      ProgressPage(items: _sharedItems, onItemsChanged: _updateSharedItems),
+      ProgressPage(
+        items: _sharedItems,
+        onItemsChanged: _updateSharedItems,
+        shortTermItems: _shortTermItems,
+        onShortTermItemsChanged: _updateShortTermItems,
+      ),
     ];
 
     return Scaffold(

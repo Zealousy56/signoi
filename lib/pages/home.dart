@@ -16,6 +16,7 @@ class _HomePageState extends State<HomePage> {
   final Map<int, Set<int>> _selectedStepIndices = {};
   final Map<String, int?> _editingStepIndex = {};
   final Map<String, TextEditingController> _stepControllers = {};
+  final Map<int, List<Map<String, dynamic>>> _originalTasks = {};
 
   @override
   void initState() {
@@ -39,35 +40,6 @@ class _HomePageState extends State<HomePage> {
         _items = widget.items;
       });
     }
-  }
-
-  void _addItem() {
-    // show dialog to enter custom title
-    showDialog<String?>(
-      context: context,
-      builder: (context) {
-        final TextEditingController t = TextEditingController();
-        return AlertDialog(
-          title: const Text('Add item'),
-          content: TextField(controller: t, autofocus: true, decoration: const InputDecoration(hintText: 'Title')),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            TextButton(onPressed: () => Navigator.pop(context, t.text.trim()), child: const Text('Add')),
-          ],
-        );
-      },
-    ).then((result) {
-      if (!mounted) return;
-      if (result != null && result.isNotEmpty) {
-        setState(() {
-          _items.insert(0, {'title': result, 'subNotes': <Map<String, dynamic>>[], 'steps': <Map<String, dynamic>>[], 'progress': 0});
-          widget.onItemsChanged(_items);
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Added Item: $result')),
-        );
-      }
-    });
   }
 
   @override
@@ -154,8 +126,11 @@ class _HomePageState extends State<HomePage> {
                                   onPressed: () {
                                     setState(() {
                                       if (_editingCards.contains(index)) {
+                                        // Save changes when exiting edit mode
+                                        widget.onItemsChanged(_items);
                                         _editingCards.remove(index);
                                         _selectedStepIndices.remove(index);
+                                        _originalTasks.remove(index);
                                         _editingStepIndex.removeWhere((key, value) => key.startsWith('${index}_'));
                                         _stepControllers.removeWhere((key, controller) {
                                           if (key.startsWith('${index}_')) {
@@ -165,6 +140,11 @@ class _HomePageState extends State<HomePage> {
                                           return false;
                                         });
                                       } else {
+                                        // Backup original tasks when entering edit mode
+                                        final currentTasks = (_items[index]['subNotes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+                                        _originalTasks[index] = List<Map<String, dynamic>>.from(
+                                          currentTasks.map((task) => Map<String, dynamic>.from(task))
+                                        );
                                         _editingCards.add(index);
                                       }
                                     });
@@ -191,7 +171,7 @@ class _HomePageState extends State<HomePage> {
                                             final item = currentTasks.removeAt(oldIndex);
                                             currentTasks.insert(newIndex, item);
                                             _items[index]['subNotes'] = currentTasks;
-                                            widget.onItemsChanged(_items);
+                                            // Don't save immediately - wait for user to confirm changes
                                             _selectedStepIndices[index]?.clear();
                                           });
                                         },
@@ -278,7 +258,7 @@ class _HomePageState extends State<HomePage> {
                                                                     if (stepIndex < currentTasks.length) {
                                                                       currentTasks[stepIndex]['text'] = newText.trim();
                                                                       _items[index]['subNotes'] = currentTasks;
-                                                                      widget.onItemsChanged(_items);
+                                                                      // Don't save immediately - wait for user to confirm changes
                                                                     }
                                                                     _editingStepIndex.remove(editKey);
                                                                     _stepControllers[editKey]?.dispose();
@@ -319,7 +299,7 @@ class _HomePageState extends State<HomePage> {
                                                               if (stepIndex < currentTasks.length) {
                                                                 currentTasks[stepIndex]['text'] = newText;
                                                                 _items[index]['subNotes'] = currentTasks;
-                                                                widget.onItemsChanged(_items);
+                                                                // Don't save immediately - wait for user to confirm changes
                                                               }
                                                               _editingStepIndex.remove(editKey);
                                                               _stepControllers[editKey]?.dispose();
@@ -421,7 +401,7 @@ class _HomePageState extends State<HomePage> {
                                             'checked': false,
                                           });
                                           _items[index]['subNotes'] = currentTasks;
-                                          widget.onItemsChanged(_items);
+                                          // Don't save immediately - wait for user to confirm changes
                                         });
                                       }
                                     },
@@ -450,7 +430,7 @@ class _HomePageState extends State<HomePage> {
                                             }
                                           }
                                           _items[index]['subNotes'] = currentTasks;
-                                          widget.onItemsChanged(_items);
+                                          // Don't save immediately - wait for user to confirm changes
                                           _selectedStepIndices[index]?.clear();
                                         });
                                       },
@@ -469,6 +449,11 @@ class _HomePageState extends State<HomePage> {
                                   child: TextButton.icon(
                                     onPressed: () {
                                       setState(() {
+                                        // Restore original tasks from backup
+                                        if (_originalTasks.containsKey(index)) {
+                                          _items[index]['subNotes'] = _originalTasks[index];
+                                          _originalTasks.remove(index);
+                                        }
                                         _editingCards.remove(index);
                                         _selectedStepIndices.remove(index);
                                         _editingStepIndex.removeWhere((key, value) => key.startsWith('${index}_'));
@@ -566,12 +551,6 @@ class _HomePageState extends State<HomePage> {
                   );
                 },
               ),
-      ),
-
-      floatingActionButton: FloatingActionButton(
-        onPressed: _addItem,
-        tooltip: 'Add item',
-        child: const Icon(Icons.add),
       ),
     );
   }
