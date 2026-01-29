@@ -3,8 +3,20 @@ import 'package:flutter/material.dart';
 class HomePage extends StatefulWidget {
   final List<Map<String, dynamic>> items;
   final Function(List<Map<String, dynamic>>) onItemsChanged;
+  final List<Map<String, dynamic>> shortTermItems;
+  final Function(List<Map<String, dynamic>>) onShortTermItemsChanged;
+  final List<Map<String, dynamic>> sharedItems;
+  final Function(List<Map<String, dynamic>>) onSharedItemsChanged;
 
-  const HomePage({super.key, required this.items, required this.onItemsChanged});
+  const HomePage({
+    super.key,
+    required this.items,
+    required this.onItemsChanged,
+    required this.shortTermItems,
+    required this.onShortTermItemsChanged,
+    required this.sharedItems,
+    required this.onSharedItemsChanged,
+  });
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -12,6 +24,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   late List<Map<String, dynamic>> _items;
+  late List<Map<String, dynamic>> _shortTermItems;
+  late List<Map<String, dynamic>> _sharedItems;
   final Set<int> _editingCards = {};
   final Map<int, Set<int>> _selectedStepIndices = {};
   final Map<String, int?> _editingStepIndex = {};
@@ -22,6 +36,8 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _items = widget.items;
+    _shortTermItems = widget.shortTermItems;
+    _sharedItems = widget.sharedItems;
   }
 
   @override
@@ -35,9 +51,13 @@ class _HomePageState extends State<HomePage> {
   @override
   void didUpdateWidget(HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.items != oldWidget.items) {
+    if (widget.items != oldWidget.items ||
+        widget.shortTermItems != oldWidget.shortTermItems ||
+        widget.sharedItems != oldWidget.sharedItems) {
       setState(() {
         _items = widget.items;
+        _shortTermItems = widget.shortTermItems;
+        _sharedItems = widget.sharedItems;
       });
     }
   }
@@ -71,14 +91,16 @@ class _HomePageState extends State<HomePage> {
         ],
       ),
 
-      body: SafeArea(
-        child: _items.isEmpty
-            ? const Center(child: Text('No items yet'))
-            : ListView.separated(
-                padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
-                itemCount: _items.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
+      body: Stack(
+        children: [
+          SafeArea(
+            child: _items.isEmpty
+                ? const Center(child: Text('No items yet'))
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
+                    itemCount: _items.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
                   final itemNumber = index + 1;
                   final item = _items[index];
                   final String title = item['title'] as String? ?? '';
@@ -392,6 +414,7 @@ class _HomePageState extends State<HomePage> {
                                           );
                                         },
                                       );
+                                      if (!mounted) return;
                                       if (result != null && (result['text'] as String? ?? '').isNotEmpty) {
                                         setState(() {
                                           final currentTasks = (_items[index]['subNotes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -498,6 +521,24 @@ class _HomePageState extends State<HomePage> {
                                                 if (taskIndex >= 0) {
                                                   currentTasks[taskIndex]['checked'] = !done;
                                                   _items[index]['subNotes'] = currentTasks;
+                                                  
+                                                  // Sync back to source goal if applicable
+                                                  final sourceType = _items[index]['_sourceType'] as String?;
+                                                  if (sourceType != null && sourceType != 'none') {
+                                                    final sourceIndex = _items[index]['_sourceIndex'] as int?;
+                                                    if (sourceIndex != null) {
+                                                      final sourceGoals = sourceType == 'longTerm' ? _sharedItems : _shortTermItems;
+                                                      if (sourceIndex >= 0 && sourceIndex < sourceGoals.length) {
+                                                        sourceGoals[sourceIndex]['subNotes'] = currentTasks;
+                                                        if (sourceType == 'longTerm') {
+                                                          widget.onSharedItemsChanged(sourceGoals);
+                                                        } else {
+                                                          widget.onShortTermItemsChanged(sourceGoals);
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                  
                                                   widget.onItemsChanged(_items);
                                                 }
                                               });
@@ -551,9 +592,280 @@ class _HomePageState extends State<HomePage> {
                   );
                 },
               ),
+          ),
+          Positioned(
+            bottom: 16,
+            right: 16,
+            child: FloatingActionButton(
+              onPressed: () => _showAddTaskDialog(),
+              child: const Icon(Icons.add),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  // No PageController used in vertical list; nothing to dispose.
+  Future<void> _showAddTaskDialog() async {
+    // First, show dialog to select goal category
+    if (!mounted) return;
+    String selectedCategory = 'longTerm';
+    final goalCategory = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Select goal type'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Add task to:'),
+                  const SizedBox(height: 16),
+                  RadioListTile<String>(
+                    title: const Text('Long-term goal'),
+                    value: 'longTerm',
+                    groupValue: selectedCategory,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedCategory = value!;
+                      });
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Short-term goal'),
+                    value: 'shortTerm',
+                    groupValue: selectedCategory,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedCategory = value!;
+                      });
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('General tasks'),
+                    value: 'none',
+                    groupValue: selectedCategory,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedCategory = value!;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(context, selectedCategory),
+                  child: const Text('Next'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (goalCategory == null) return;
+
+    // If "General tasks" is selected, skip to task details
+    if (goalCategory == 'none') {
+      await _showTaskDetailsDialog(null, null);
+      return;
+    }
+
+    // Otherwise, show dialog to select which goal
+    if (!mounted) return;
+    final goals = goalCategory == 'longTerm' ? _items : _shortTermItems;
+    if (goals.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No goals available yet. Add a goal first.')),
+      );
+      return;
+    }
+    final selectedIndex = await showDialog<int>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Select which goal'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(
+                goals.length,
+                (idx) => ListTile(
+                  title: Text(goals[idx]['title'] as String? ?? 'Goal ${idx + 1}'),
+                  onTap: () => Navigator.pop(context, idx),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    if (selectedIndex != null) {
+      await _showTaskDetailsDialog(goalCategory, selectedIndex);
+    }
+  }
+
+  Future<void> _showTaskDetailsDialog(String? category, int? goalIndex) async {
+    // Show dialog to enter task details
+    if (!mounted) return;
+    final result = await showDialog<Map<String, dynamic>?>(
+      context: context,
+      builder: (context) {
+        final TextEditingController taskController = TextEditingController();
+        String selectedTaskType = 'temporary';
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Add Task'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: taskController,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Task description',
+                      hintText: 'What needs to be done?',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Task type:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  RadioListTile<String>(
+                    title: const Text('Daily'),
+                    subtitle: const Text('Repeats every day'),
+                    value: 'daily',
+                    groupValue: selectedTaskType,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedTaskType = value!;
+                      });
+                    },
+                  ),
+                  RadioListTile<String>(
+                    title: const Text('Temporary'),
+                    subtitle: const Text('One-time task'),
+                    value: 'temporary',
+                    groupValue: selectedTaskType,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedTaskType = value!;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final text = taskController.text.trim();
+                    if (text.isNotEmpty) {
+                      Navigator.pop(context, {
+                        'text': text,
+                        'taskType': selectedTaskType,
+                      });
+                    }
+                  },
+                  child: const Text('Add'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted) return;
+    if (result != null) {
+      setState(() {
+        if (category == null) {
+          // Add to general tasks (no goal)
+          // Check if we already have a "general tasks" item
+          var unattachedItem = _items.firstWhere(
+            (item) => item['_type'] == 'none',
+            orElse: () => {
+              'title': "Today's General Tasks",
+              '_type': 'none',
+              'subNotes': <Map<String, dynamic>>[],
+            },
+          );
+
+          if (!_items.contains(unattachedItem)) {
+            _items.add(unattachedItem);
+          }
+
+          final taskIndex = _items.indexOf(unattachedItem);
+          final currentTasks = (_items[taskIndex]['subNotes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+          currentTasks.add({
+            'text': result['text'],
+            'taskType': result['taskType'] ?? 'temporary',
+            'checked': false,
+          });
+          _items[taskIndex]['subNotes'] = currentTasks;
+          widget.onItemsChanged(_items);
+        } else {
+          // Add to a long-term or short-term goal
+          if (goalIndex == null) {
+            return;
+          }
+          final sourceGoals = category == 'longTerm' ? _sharedItems : _shortTermItems;
+          if (goalIndex < 0 || goalIndex >= sourceGoals.length) {
+            return;
+          }
+          final currentTasks = (sourceGoals[goalIndex]['subNotes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+          currentTasks.add({
+            'text': result['text'],
+            'taskType': result['taskType'] ?? 'temporary',
+            'checked': false,
+          });
+          sourceGoals[goalIndex]['subNotes'] = currentTasks;
+
+          // Update source
+          if (category == 'longTerm') {
+            widget.onSharedItemsChanged(sourceGoals);
+          } else {
+            widget.onShortTermItemsChanged(sourceGoals);
+          }
+
+          // Add to home page if not already there
+          final goalItem = _items.firstWhere(
+            (item) =>
+                item['_sourceType'] == category &&
+                item['_sourceIndex'] == goalIndex,
+            orElse: () => {},
+          );
+
+          if (goalItem.isEmpty) {
+            // Create a reference item in home page
+            _items.add({
+              'title': sourceGoals[goalIndex]['title'],
+              '_sourceType': category,
+              '_sourceIndex': goalIndex,
+              'subNotes': sourceGoals[goalIndex]['subNotes'],
+              'steps': sourceGoals[goalIndex]['steps'] ?? [],
+              'progress': sourceGoals[goalIndex]['progress'] ?? 0,
+            });
+          } else {
+            // Update the reference item
+            final index = _items.indexOf(goalItem);
+            _items[index]['subNotes'] = sourceGoals[goalIndex]['subNotes'];
+          }
+
+          widget.onItemsChanged(_items);
+        }
+      });
+    }
+  }
 }

@@ -93,6 +93,23 @@ class _GoalListSectionState extends State<GoalListSection> {
   final Map<String, TextEditingController> _stepControllers = {};
   final Map<int, Map<String, dynamic>> _originalState = {};
 
+  List<Map<String, dynamic>> _toMapList(Object? value) {
+    if (value is List) {
+      return value
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .toList();
+    }
+    return <Map<String, dynamic>>[];
+  }
+
+  int _toInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value) ?? 0;
+    return 0;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -148,10 +165,8 @@ class _GoalListSectionState extends State<GoalListSection> {
                         itemBuilder: (context, index) {
                           final item = _items[index];
                           final String title = item['title'] as String? ?? '';
-                          final List<Map<String, dynamic>> rawSteps =
-                              (item['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-                          final steps = List<Map<String, dynamic>>.from(rawSteps);
-                          final int progress = item['progress'] as int? ?? 0;
+                            final steps = _toMapList(item['steps']);
+                            final int progress = _toInt(item['progress']);
                           
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -451,8 +466,7 @@ class _GoalListSectionState extends State<GoalListSection> {
 
   void _toggleStepChecked(int index, int stepIndex) {
     setState(() {
-      final currentSteps =
-          (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+      final currentSteps = _toMapList(_items[index]['steps']);
       if (stepIndex < currentSteps.length) {
         final prev = currentSteps[stepIndex]['checked'] == true;
         currentSteps[stepIndex]['checked'] = !prev;
@@ -464,8 +478,7 @@ class _GoalListSectionState extends State<GoalListSection> {
 
   void _deleteSelectedSteps(int index) {
     setState(() {
-      final currentSteps =
-          (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        final currentSteps = _toMapList(_items[index]['steps']);
       final selectedSet = _selectedStepIndices[index] ?? {};
       final sortedIndices = selectedSet.toList()..sort((a, b) => b.compareTo(a));
       
@@ -515,8 +528,7 @@ class _GoalListSectionState extends State<GoalListSection> {
     
     if (result != null && result.isNotEmpty) {
       setState(() {
-        final currentSteps =
-            (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+        final currentSteps = _toMapList(_items[index]['steps']);
         currentSteps.add({
           'text': result,
           'checked': false,

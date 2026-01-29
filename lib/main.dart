@@ -31,14 +31,9 @@ class RootPage extends StatefulWidget {
 
 class _RootPageState extends State<RootPage> {
   int _currentIndex = 0;
-  List<Map<String, dynamic>> _sharedItems =
-      List.generate(10, (i) => {
-            'title': 'Milestone ${i + 1}',
-            'subNotes': <Map<String, dynamic>>[],
-            'steps': <Map<String, dynamic>>[],
-            'progress': 0,
-          });
+  List<Map<String, dynamic>> _sharedItems = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _shortTermItems = <Map<String, dynamic>>[];
+  List<Map<String, dynamic>> _homePageItems = <Map<String, dynamic>>[]; // Items displayed on home page
 
   void _updateSharedItems(List<Map<String, dynamic>> newItems) {
     setState(() {
@@ -52,12 +47,25 @@ class _RootPageState extends State<RootPage> {
     });
   }
 
+  void _updateHomePageItems(List<Map<String, dynamic>> newItems) {
+    setState(() {
+      _homePageItems = newItems;
+    });
+  }
+
   void _onTap(int index) => setState(() => _currentIndex = index);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) { 
     final List<Widget> pages = <Widget>[
-      HomePage(items: _sharedItems, onItemsChanged: _updateSharedItems),
+      HomePage(
+        items: _homePageItems,
+        onItemsChanged: _updateHomePageItems,
+        shortTermItems: _shortTermItems,
+        onShortTermItemsChanged: _updateShortTermItems,
+        sharedItems: _sharedItems,
+        onSharedItemsChanged: _updateSharedItems,
+      ),
       const NoisePage(),
       ProgressPage(
         items: _sharedItems,
