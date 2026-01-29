@@ -27,6 +27,7 @@ class _HomePageState extends State<HomePage> {
   late List<Map<String, dynamic>> _shortTermItems;
   late List<Map<String, dynamic>> _sharedItems;
   final Set<int> _editingCards = {};
+  final Set<int> _expandedTaskCards = {};
   final Map<int, Set<int>> _selectedStepIndices = {};
   final Map<String, int?> _editingStepIndex = {};
   final Map<String, TextEditingController> _stepControllers = {};
@@ -106,17 +107,7 @@ class _HomePageState extends State<HomePage> {
                   final String title = item['title'] as String? ?? '';
                   final List<Map<String, dynamic>> rawTasks =
                       (item['subNotes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-                  final tasks = List<Map<String, dynamic>>.from(rawTasks)
-                    ..sort((a, b) {
-                      // Sort by taskType first (daily before temporary)
-                      final aType = a['taskType'] as String? ?? 'temporary';
-                      final bType = b['taskType'] as String? ?? 'temporary';
-                      if (aType != bType) {
-                        return aType == 'daily' ? -1 : 1;
-                      }
-                      // Then sort by checked status
-                      return (a['checked'] == true ? 1 : 0).compareTo(b['checked'] == true ? 1 : 0);
-                    });
+                  final tasks = List<Map<String, dynamic>>.from(rawTasks);
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4.0),
                     child: Card(
@@ -340,102 +331,6 @@ class _HomePageState extends State<HomePage> {
                                         },
                                       ),
                               ),
-                              Padding(
-                                padding: const EdgeInsets.only(top: 8.0),
-                                child: Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton.icon(
-                                    onPressed: () async {
-                                      final result = await showDialog<Map<String, dynamic>?>(
-                                        context: context,
-                                        builder: (context) {
-                                          final TextEditingController taskController = TextEditingController();
-                                          String selectedTaskType = 'temporary';
-                                          return StatefulBuilder(
-                                            builder: (context, setDialogState) {
-                                              return AlertDialog(
-                                                title: const Text('Add Task'),
-                                                content: Column(
-                                                  mainAxisSize: MainAxisSize.min,
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                                  children: [
-                                                    TextField(
-                                                      controller: taskController,
-                                                      autofocus: true,
-                                                      decoration: const InputDecoration(
-                                                        labelText: 'Task description',
-                                                        hintText: 'What needs to be done?',
-                                                      ),
-                                                    ),
-                                                    const SizedBox(height: 16),
-                                                    const Text('Task type:', style: TextStyle(fontWeight: FontWeight.bold)),
-                                                    RadioListTile<String>(
-                                                      title: const Text('Daily'),
-                                                      subtitle: const Text('Repeats every day'),
-                                                      value: 'daily',
-                                                      groupValue: selectedTaskType,
-                                                      onChanged: (value) {
-                                                        setDialogState(() {
-                                                          selectedTaskType = value!;
-                                                        });
-                                                      },
-                                                    ),
-                                                    RadioListTile<String>(
-                                                      title: const Text('Temporary'),
-                                                      subtitle: const Text('One-time task'),
-                                                      value: 'temporary',
-                                                      groupValue: selectedTaskType,
-                                                      onChanged: (value) {
-                                                        setDialogState(() {
-                                                          selectedTaskType = value!;
-                                                        });
-                                                      },
-                                                    ),
-                                                  ],
-                                                ),
-                                                actions: [
-                                                  TextButton(
-                                                    onPressed: () => Navigator.pop(context),
-                                                    child: const Text('Cancel'),
-                                                  ),
-                                                  TextButton(
-                                                    onPressed: () {
-                                                      final text = taskController.text.trim();
-                                                      Navigator.pop(context, {
-                                                        'text': text,
-                                                        'taskType': selectedTaskType,
-                                                      });
-                                                    },
-                                                    child: const Text('Add'),
-                                                  ),
-                                                ],
-                                              );
-                                            },
-                                          );
-                                        },
-                                      );
-                                      if (!mounted) return;
-                                      if (result != null && (result['text'] as String? ?? '').isNotEmpty) {
-                                        setState(() {
-                                          final currentTasks = (_items[index]['subNotes'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-                                          currentTasks.add({
-                                            'text': result['text'],
-                                            'taskType': result['taskType'] ?? 'temporary',
-                                            'checked': false,
-                                          });
-                                          _items[index]['subNotes'] = currentTasks;
-                                          // Don't save immediately - wait for user to confirm changes
-                                        });
-                                      }
-                                    },
-                                    icon: const Icon(Icons.add, size: 18),
-                                    label: const Text('Add Task'),
-                                    style: TextButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    ),
-                                  ),
-                                ),
-                              ),
                               if (_selectedStepIndices[index]?.isNotEmpty ?? false)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 8.0),
@@ -508,7 +403,11 @@ class _HomePageState extends State<HomePage> {
                                   else
                                     Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: tasks.map((task) {
+                                      children: (
+                                        _expandedTaskCards.contains(index)
+                                            ? tasks
+                                            : tasks.take(3).toList()
+                                      ).map((task) {
                                         final done = task['checked'] == true;
                                         final taskType = task['taskType'] as String? ?? 'temporary';
                                         return Padding(
@@ -582,6 +481,24 @@ class _HomePageState extends State<HomePage> {
                                           ),
                                         );
                                       }).toList(),
+                                    ),
+                                  if (tasks.length > 3)
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            if (_expandedTaskCards.contains(index)) {
+                                              _expandedTaskCards.remove(index);
+                                            } else {
+                                              _expandedTaskCards.add(index);
+                                            }
+                                          });
+                                        },
+                                        child: Text(
+                                          _expandedTaskCards.contains(index) ? 'Show less' : 'Show all',
+                                        ),
+                                      ),
                                     ),
                                 ],
                               ),
