@@ -680,7 +680,7 @@ class _HomePageState extends State<HomePage> {
 
     // Otherwise, show dialog to select which goal
     if (!mounted) return;
-    final goals = goalCategory == 'longTerm' ? _items : _shortTermItems;
+    final goals = goalCategory == 'longTerm' ? _sharedItems : _shortTermItems;
     if (goals.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No goals available yet. Add a goal first.')),

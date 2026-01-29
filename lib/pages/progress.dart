@@ -52,12 +52,14 @@ class _ProgressPageState extends State<ProgressPage> {
         children: [
           // Long-term goals section
           GoalListSection(
+            key: const ValueKey('longTermGoals'),
             title: 'Long-term Goals',
             items: widget.items,
             onItemsChanged: widget.onItemsChanged,
           ),
           // Short-term goals section
           GoalListSection(
+            key: const ValueKey('shortTermGoals'),
             title: 'Short-term Goals',
             items: widget.shortTermItems,
             onItemsChanged: widget.onShortTermItemsChanged,
@@ -86,7 +88,6 @@ class GoalListSection extends StatefulWidget {
 }
 
 class _GoalListSectionState extends State<GoalListSection> {
-  late List<Map<String, dynamic>> _items;
   final Set<int> _editingCards = {};
   final Map<int, TextEditingController> _titleControllers = {};
   final Map<int, Set<int>> _selectedStepIndices = {};
@@ -111,12 +112,6 @@ class _GoalListSectionState extends State<GoalListSection> {
   }
 
   @override
-  void initState() {
-    super.initState();
-    _items = widget.items;
-  }
-
-  @override
   void dispose() {
     for (var controller in _titleControllers.values) {
       controller.dispose();
@@ -128,22 +123,13 @@ class _GoalListSectionState extends State<GoalListSection> {
   }
 
   @override
-  void didUpdateWidget(GoalListSection oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.items != oldWidget.items) {
-      setState(() {
-        _items = widget.items;
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final items = widget.items;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: _items.isEmpty
+          child: items.isEmpty
               ? Center(child: Text('No ${widget.title} yet'))
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -161,12 +147,12 @@ class _GoalListSectionState extends State<GoalListSection> {
                       child: PageView.builder(
                         padEnds: true,
                         pageSnapping: true,
-                        itemCount: _items.length,
+                        itemCount: items.length,
                         itemBuilder: (context, index) {
-                          final item = _items[index];
+                          final item = items[index];
                           final String title = item['title'] as String? ?? '';
-                            final steps = _toMapList(item['steps']);
-                            final int progress = _toInt(item['progress']);
+                          final steps = _toMapList(item['steps']);
+                          final int progress = _toInt(item['progress']);
                           
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -240,8 +226,11 @@ class _GoalListSectionState extends State<GoalListSection> {
                   onSubmitted: (newTitle) {
                     if (newTitle.trim().isNotEmpty) {
                       setState(() {
-                        _items[index]['title'] = newTitle.trim();
-                        widget.onItemsChanged(_items);
+                        final updatedItems = List<Map<String, dynamic>>.from(widget.items);
+                        if (index >= 0 && index < updatedItems.length) {
+                          updatedItems[index]['title'] = newTitle.trim();
+                          widget.onItemsChanged(updatedItems);
+                        }
                         _editingCards.remove(index);
                       });
                     }
@@ -397,18 +386,24 @@ class _GoalListSectionState extends State<GoalListSection> {
       if (_editingCards.contains(index)) {
         final newTitle = _titleControllers[index]?.text.trim() ?? '';
         if (newTitle.isNotEmpty) {
-          _items[index]['title'] = newTitle;
-          widget.onItemsChanged(_items);
+          final updatedItems = List<Map<String, dynamic>>.from(widget.items);
+          if (index >= 0 && index < updatedItems.length) {
+            updatedItems[index]['title'] = newTitle;
+            widget.onItemsChanged(updatedItems);
+          }
         }
         _editingCards.remove(index);
         _titleControllers[index]?.dispose();
         _titleControllers.remove(index);
       } else {
         _editingCards.add(index);
+        if (index < 0 || index >= widget.items.length) {
+          return;
+        }
         _originalState[index] = {
           'title': title,
           'steps': List<Map<String, dynamic>>.from(
-            (_items[index]['steps'] as List?)?.cast<Map<String, dynamic>>() ?? [],
+            _toMapList(widget.items[index]['steps']),
           ).map((s) => Map<String, dynamic>.from(s)).toList(),
         };
         _titleControllers[index] = TextEditingController(text: title)
@@ -443,8 +438,11 @@ class _GoalListSectionState extends State<GoalListSection> {
     
     if (shouldDelete == true) {
       setState(() {
-        _items.removeAt(index);
-        widget.onItemsChanged(_items);
+        final updatedItems = List<Map<String, dynamic>>.from(widget.items);
+        if (index >= 0 && index < updatedItems.length) {
+          updatedItems.removeAt(index);
+          widget.onItemsChanged(updatedItems);
+        }
         _editingCards.remove(index);
         _titleControllers[index]?.dispose();
         _titleControllers.remove(index);
@@ -466,31 +464,37 @@ class _GoalListSectionState extends State<GoalListSection> {
 
   void _toggleStepChecked(int index, int stepIndex) {
     setState(() {
-      final currentSteps = _toMapList(_items[index]['steps']);
-      if (stepIndex < currentSteps.length) {
-        final prev = currentSteps[stepIndex]['checked'] == true;
-        currentSteps[stepIndex]['checked'] = !prev;
-        _items[index]['steps'] = currentSteps;
-        widget.onItemsChanged(_items);
+      final updatedItems = List<Map<String, dynamic>>.from(widget.items);
+      if (index >= 0 && index < updatedItems.length) {
+        final currentSteps = _toMapList(updatedItems[index]['steps']);
+        if (stepIndex < currentSteps.length) {
+          final prev = currentSteps[stepIndex]['checked'] == true;
+          currentSteps[stepIndex]['checked'] = !prev;
+          updatedItems[index]['steps'] = currentSteps;
+          widget.onItemsChanged(updatedItems);
+        }
       }
     });
   }
 
   void _deleteSelectedSteps(int index) {
     setState(() {
-        final currentSteps = _toMapList(_items[index]['steps']);
-      final selectedSet = _selectedStepIndices[index] ?? {};
-      final sortedIndices = selectedSet.toList()..sort((a, b) => b.compareTo(a));
-      
-      for (final stepIdx in sortedIndices) {
-        if (stepIdx < currentSteps.length) {
-          currentSteps.removeAt(stepIdx);
+      final updatedItems = List<Map<String, dynamic>>.from(widget.items);
+      if (index >= 0 && index < updatedItems.length) {
+        final currentSteps = _toMapList(updatedItems[index]['steps']);
+        final selectedSet = _selectedStepIndices[index] ?? {};
+        final sortedIndices = selectedSet.toList()..sort((a, b) => b.compareTo(a));
+        
+        for (final stepIdx in sortedIndices) {
+          if (stepIdx < currentSteps.length) {
+            currentSteps.removeAt(stepIdx);
+          }
         }
+        
+        updatedItems[index]['steps'] = currentSteps;
+        widget.onItemsChanged(updatedItems);
+        _selectedStepIndices[index]?.clear();
       }
-      
-      _items[index]['steps'] = currentSteps;
-      widget.onItemsChanged(_items);
-      _selectedStepIndices[index]?.clear();
     });
   }
 
@@ -528,13 +532,16 @@ class _GoalListSectionState extends State<GoalListSection> {
     
     if (result != null && result.isNotEmpty) {
       setState(() {
-        final currentSteps = _toMapList(_items[index]['steps']);
-        currentSteps.add({
-          'text': result,
-          'checked': false,
-        });
-        _items[index]['steps'] = currentSteps;
-        widget.onItemsChanged(_items);
+        final updatedItems = List<Map<String, dynamic>>.from(widget.items);
+        if (index >= 0 && index < updatedItems.length) {
+          final currentSteps = _toMapList(updatedItems[index]['steps']);
+          currentSteps.add({
+            'text': result,
+            'checked': false,
+          });
+          updatedItems[index]['steps'] = currentSteps;
+          widget.onItemsChanged(updatedItems);
+        }
       });
     }
   }
@@ -599,13 +606,14 @@ class _GoalListSectionState extends State<GoalListSection> {
         result['title'] != null &&
         result['title'].toString().isNotEmpty) {
       setState(() {
-        _items.add({
+        final updatedItems = List<Map<String, dynamic>>.from(widget.items);
+        updatedItems.add({
           'title': result['title'],
           'subNotes': <Map<String, dynamic>>[],
           'steps': result['steps'] ?? <Map<String, dynamic>>[],
           'progress': result['progress'] ?? 0,
         });
-        widget.onItemsChanged(_items);
+        widget.onItemsChanged(updatedItems);
       });
     }
   }
