@@ -19,53 +19,212 @@ class ProgressPage extends StatefulWidget {
 }
 
 class _ProgressPageState extends State<ProgressPage> {
+  int _level = 1;
+  double _experience = 0.0;
+  double _displayExperience = 0.0;
+  double _previousDisplayExperience = 0.0;
+  bool _pendingExperienceAnimation = false;
+  TabController? _tabController;
+  static const double _expPerGoal = 0.25;
+
+  @override
+  void dispose() {
+    _tabController?.removeListener(_handleTabChange);
+    super.dispose();
+  }
+
+  void _handleTabChange() {
+    if (_tabController == null) return;
+    if (!_tabController!.indexIsChanging && _tabController!.index == 1) {
+      if (_pendingExperienceAnimation) {
+        setState(() {
+          _previousDisplayExperience = _displayExperience;
+          _displayExperience = _experience;
+          _pendingExperienceAnimation = false;
+        });
+      }
+    }
+  }
+
+  void _addExperience() {
+    setState(() {
+      _experience += _expPerGoal;
+      if (_experience >= 1.0) {
+        _level += 1;
+        _experience = 0.01;
+      }
+      final onProgressTab = _tabController != null && _tabController!.index == 1;
+      if (onProgressTab) {
+        _previousDisplayExperience = _displayExperience;
+        _displayExperience = _experience;
+      } else {
+        _pendingExperienceAnimation = true;
+      }
+    });
+  }
+
+  void _onProgressAnimationEnd() {
+    if (!mounted) return;
+    if (_previousDisplayExperience != _displayExperience) {
+      setState(() {
+        _previousDisplayExperience = _displayExperience;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        centerTitle: true,
-        title: const Text('Progress'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.help_outline),
-            tooltip: 'Help',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Help selected')),
-              );
-            },
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings),
-            tooltip: 'Settings',
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Open Settings (TODO)')),
-              );
-            },
-          ),
-        ],
+    return DefaultTabController(
+      length: 2,
+      child: Builder(
+        builder: (context) {
+          final controller = DefaultTabController.of(context);
+          if (controller != _tabController) {
+            _tabController?.removeListener(_handleTabChange);
+            _tabController = controller;
+            _tabController?.addListener(_handleTabChange);
+          }
+          return Scaffold(
+            appBar: AppBar(
+              centerTitle: true,
+              title: const Text('Progress'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.help_outline),
+                  tooltip: 'Help',
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Help selected')),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.settings),
+                  tooltip: 'Settings',
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Open Settings (TODO)')),
+                    );
+                  },
+                ),
+              ],
+              bottom: const TabBar(
+                tabs: [
+                  Tab(text: 'Goals'),
+                  Tab(text: 'Progress'),
+                ],
+              ),
+            ),
+            body: TabBarView(
+              children: [
+                PageView(
+                  scrollDirection: Axis.vertical,
+                  pageSnapping: true,
+                  children: [
+                    // Long-term goals section
+                    GoalListSection(
+                      key: const ValueKey('longTermGoals'),
+                      title: 'Long-term Goals',
+                      items: widget.items,
+                      onItemsChanged: widget.onItemsChanged,
+                      onGoalCompleted: _addExperience,
+                    ),
+                    // Short-term goals section
+                    GoalListSection(
+                      key: const ValueKey('shortTermGoals'),
+                      title: 'Short-term Goals',
+                      items: widget.shortTermItems,
+                      onItemsChanged: widget.onShortTermItemsChanged,
+                      onGoalCompleted: _addExperience,
+                    ),
+                  ],
+                ),
+                Center(
+                  child: _LevelIndicator(
+                    level: _level,
+                    experience: _level == 1 && _displayExperience == 0.0 ? 0.0 : _displayExperience,
+                    previousExperience: _previousDisplayExperience,
+                    onAnimationEnd: _onProgressAnimationEnd,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
-      body: PageView(
-        scrollDirection: Axis.vertical,
-        pageSnapping: true,
-        children: [
-          // Long-term goals section
-          GoalListSection(
-            key: const ValueKey('longTermGoals'),
-            title: 'Long-term Goals',
-            items: widget.items,
-            onItemsChanged: widget.onItemsChanged,
+    );
+  }
+}
+
+class _LevelIndicator extends StatelessWidget {
+  final int level;
+  final double experience;
+  final double previousExperience;
+  final VoidCallback onAnimationEnd;
+
+  const _LevelIndicator({
+    required this.level,
+    required this.experience,
+    required this.previousExperience,
+    required this.onAnimationEnd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween<double>(
+            begin: previousExperience.clamp(0.0, 1.0),
+            end: experience.clamp(0.0, 1.0),
           ),
-          // Short-term goals section
-          GoalListSection(
-            key: const ValueKey('shortTermGoals'),
-            title: 'Short-term Goals',
-            items: widget.shortTermItems,
-            onItemsChanged: widget.onShortTermItemsChanged,
+          duration: const Duration(milliseconds: 900),
+          curve: Curves.easeInOut,
+          onEnd: onAnimationEnd,
+          builder: (context, value, child) {
+            final clamped = value.clamp(0.0, 1.0);
+            final bool isEmpty = clamped <= 0.0;
+
+            Widget icon = const Icon(
+              Icons.signal_cellular_4_bar,
+              size: 320,
+              color: Colors.black,
+            );
+
+            if (!isEmpty) {
+              icon = ShaderMask(
+                shaderCallback: (Rect bounds) {
+                  return LinearGradient(
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                    colors: const [
+                      Colors.green,
+                      Colors.green,
+                      Colors.black,
+                      Colors.black,
+                    ],
+                    stops: [0.0, clamped, clamped, 1.0],
+                  ).createShader(bounds);
+                },
+                blendMode: BlendMode.srcIn,
+                child: icon,
+              );
+            }
+
+            return icon;
+          },
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Level $level',
+          style: const TextStyle(
+            fontSize: 72,
+            fontWeight: FontWeight.w600,
+            color: Colors.black,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -75,24 +234,28 @@ class GoalListSection extends StatefulWidget {
   final String title;
   final List<Map<String, dynamic>> items;
   final Function(List<Map<String, dynamic>>) onItemsChanged;
+  final VoidCallback onGoalCompleted;
 
   const GoalListSection({
     super.key,
     required this.title,
     required this.items,
     required this.onItemsChanged,
+    required this.onGoalCompleted,
   });
 
   @override
   State<GoalListSection> createState() => _GoalListSectionState();
 }
 
-class _GoalListSectionState extends State<GoalListSection> {
+class _GoalListSectionState extends State<GoalListSection> with TickerProviderStateMixin {
   final Set<int> _editingCards = {};
   final Map<int, TextEditingController> _titleControllers = {};
   final Map<int, Set<int>> _selectedStepIndices = {};
   final Map<String, TextEditingController> _stepControllers = {};
   final Map<int, Map<String, dynamic>> _originalState = {};
+  bool _glowPulse = false;
+  final Set<int> _completingCards = {};
 
   List<Map<String, dynamic>> _toMapList(Object? value) {
     if (value is List) {
@@ -104,11 +267,10 @@ class _GoalListSectionState extends State<GoalListSection> {
     return <Map<String, dynamic>>[];
   }
 
-  int _toInt(Object? value) {
-    if (value is int) return value;
-    if (value is num) return value.toInt();
-    if (value is String) return int.tryParse(value) ?? 0;
-    return 0;
+  int _calculateProgress(List<Map<String, dynamic>> steps) {
+    if (steps.isEmpty) return 0;
+    final completed = steps.where((step) => step['checked'] == true).length;
+    return ((completed / steps.length) * 100).round();
   }
 
   @override
@@ -129,22 +291,22 @@ class _GoalListSectionState extends State<GoalListSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: items.isEmpty
-              ? Center(child: Text('No ${widget.title} yet'))
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 12),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                      child: Text(
-                        widget.title,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: PageView.builder(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 12),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text(
+                  widget.title,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Expanded(
+                child: items.isEmpty
+                    ? Center(child: Text('No ${widget.title} yet'))
+                    : PageView.builder(
                         padEnds: true,
                         pageSnapping: true,
                         itemCount: items.length,
@@ -152,36 +314,51 @@ class _GoalListSectionState extends State<GoalListSection> {
                           final item = items[index];
                           final String title = item['title'] as String? ?? '';
                           final steps = _toMapList(item['steps']);
-                          final int progress = _toInt(item['progress']);
+                          final int progress = _calculateProgress(steps);
+                          final bool isCompleting = _completingCards.contains(index);
                           
                           return Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 16.0),
                             child: SizedBox(
                               width: 300,
-                              child: Card(
-                                color: Colors.white,
-                                elevation: 3,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      _buildHeader(index, title),
-                                      const SizedBox(height: 8),
-                                      _buildProgressBar(progress),
-                                      const SizedBox(height: 8),
-                                      Expanded(
-                                        child: _buildStepsList(index, steps),
+                              child: AnimatedSize(
+                                duration: const Duration(milliseconds: 280),
+                                curve: Curves.easeInOut,
+                                alignment: Alignment.center,
+                                child: AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 220),
+                                  opacity: isCompleting ? 0.0 : 1.0,
+                                  child: AnimatedScale(
+                                    duration: const Duration(milliseconds: 280),
+                                    scale: isCompleting ? 0.0 : 1.0,
+                                    child: Card(
+                                      color: Colors.white,
+                                      elevation: 3,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
                                       ),
-                                      if (_editingCards.contains(index)) ...[
-                                        _buildAddStepButton(index),
-                                        if (_selectedStepIndices[index]?.isNotEmpty ?? false)
-                                          _buildDeleteSelectedButton(index),
-                                      ],
-                                    ],
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(16.0),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            _buildHeader(index, title),
+                                            const SizedBox(height: 8),
+                                            _buildProgressBar(progress),
+                                            const SizedBox(height: 8),
+                                            Expanded(
+                                              child: _buildStepsList(index, steps),
+                                            ),
+                                            if (_editingCards.contains(index)) ...[
+                                              _buildAddStepButton(index),
+                                              if (_selectedStepIndices[index]?.isNotEmpty ?? false)
+                                                _buildDeleteSelectedButton(index),
+                                            ],
+                                            _buildCompleteButton(progress, index, item),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
@@ -189,9 +366,9 @@ class _GoalListSectionState extends State<GoalListSection> {
                           );
                         },
                       ),
-                    ),
-                  ],
-                ),
+              ),
+            ],
+          ),
         ),
         Padding(
           padding: const EdgeInsets.all(16.0),
@@ -262,23 +439,31 @@ class _GoalListSectionState extends State<GoalListSection> {
   }
 
   Widget _buildProgressBar(int progress) {
-    return Row(
-      children: [
-        Expanded(
-          child: LinearProgressIndicator(
-            value: progress / 100,
-            backgroundColor: Colors.grey.shade200,
-            valueColor: AlwaysStoppedAnimation<Color>(
-              progress < 50 ? Colors.orange : Colors.green,
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: null, end: progress / 100),
+      duration: const Duration(milliseconds: 700),
+      curve: Curves.easeInOut,
+      builder: (context, value, child) {
+        final percent = (value * 100).round();
+        return Row(
+          children: [
+            Expanded(
+              child: LinearProgressIndicator(
+                value: value,
+                backgroundColor: Colors.grey.shade200,
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  percent < 50 ? Colors.orange : Colors.green,
+                ),
+              ),
             ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          '$progress%',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-      ],
+            const SizedBox(width: 8),
+            Text(
+              '$percent%',
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -381,6 +566,115 @@ class _GoalListSectionState extends State<GoalListSection> {
     );
   }
 
+  void _completeGoal(int index, Map<String, dynamic> item) {
+    if (_completingCards.contains(index)) {
+      return;
+    }
+    widget.onGoalCompleted();
+    setState(() {
+      _completingCards.add(index);
+    });
+
+    Future.delayed(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      setState(() {
+        final updatedItems = List<Map<String, dynamic>>.from(widget.items);
+        if (index >= 0 && index < updatedItems.length) {
+          updatedItems.removeAt(index);
+        } else {
+          updatedItems.removeWhere((element) => element['title'] == item['title']);
+        }
+        widget.onItemsChanged(updatedItems);
+        _completingCards.remove(index);
+        _editingCards.remove(index);
+        _titleControllers[index]?.dispose();
+        _titleControllers.remove(index);
+        _selectedStepIndices.remove(index);
+      });
+    });
+  }
+
+  Widget _buildCompleteButton(int progress, int index, Map<String, dynamic> item) {
+    final show = progress >= 100;
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 450),
+      switchInCurve: Curves.easeOutBack,
+      switchOutCurve: Curves.easeIn,
+      transitionBuilder: (child, animation) {
+        return ScaleTransition(
+          scale: animation,
+          child: FadeTransition(
+            opacity: animation,
+            child: child,
+          ),
+        );
+      },
+      child: show
+          ? Padding(
+              key: const ValueKey('complete-visible'),
+              padding: const EdgeInsets.only(top: 8.0),
+              child: Align(
+                alignment: Alignment.center,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween<double>(
+                    begin: _glowPulse ? 0.6 : 1.0,
+                    end: _glowPulse ? 1.0 : 0.6,
+                  ),
+                  duration: const Duration(milliseconds: 1200),
+                  curve: Curves.easeInOut,
+                  onEnd: () {
+                    if (mounted) {
+                      setState(() {
+                        _glowPulse = !_glowPulse;
+                      });
+                    }
+                  },
+                  builder: (context, glow, child) {
+                    final baseColor = Color.lerp(
+                      Colors.green.shade700,
+                      Colors.green.shade300,
+                      glow,
+                    )!;
+                    return DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: baseColor,
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: baseColor.withValues(alpha: 166),
+                            blurRadius: 14 * glow,
+                            spreadRadius: 2 * glow,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: child,
+                    );
+                  },
+                  child: TextButton.icon(
+                    onPressed: () => _completeGoal(index, item),
+                    icon: const Icon(Icons.check, color: Colors.white, size: 18),
+                    label: const Text(
+                      'Complete',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            )
+          : const SizedBox(key: ValueKey('complete-hidden')),
+    );
+  }
+
   void _toggleEdit(int index, String title) {
     setState(() {
       if (_editingCards.contains(index)) {
@@ -471,6 +765,7 @@ class _GoalListSectionState extends State<GoalListSection> {
           final prev = currentSteps[stepIndex]['checked'] == true;
           currentSteps[stepIndex]['checked'] = !prev;
           updatedItems[index]['steps'] = currentSteps;
+          updatedItems[index]['progress'] = _calculateProgress(currentSteps);
           widget.onItemsChanged(updatedItems);
         }
       }
@@ -492,6 +787,7 @@ class _GoalListSectionState extends State<GoalListSection> {
         }
         
         updatedItems[index]['steps'] = currentSteps;
+        updatedItems[index]['progress'] = _calculateProgress(currentSteps);
         widget.onItemsChanged(updatedItems);
         _selectedStepIndices[index]?.clear();
       }
@@ -540,6 +836,7 @@ class _GoalListSectionState extends State<GoalListSection> {
             'checked': false,
           });
           updatedItems[index]['steps'] = currentSteps;
+          updatedItems[index]['progress'] = _calculateProgress(currentSteps);
           widget.onItemsChanged(updatedItems);
         }
       });
@@ -548,7 +845,6 @@ class _GoalListSectionState extends State<GoalListSection> {
 
   Future<void> _showAddGoalDialog(BuildContext context) async {
     final titleController = TextEditingController();
-    final progressController = TextEditingController(text: '0');
 
     final result = await showDialog<Map<String, dynamic>?>(
       context: context,
@@ -566,15 +862,6 @@ class _GoalListSectionState extends State<GoalListSection> {
                   hintText: 'Enter goal title',
                 ),
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: progressController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Initial Progress (%)',
-                  hintText: '0-100',
-                ),
-              ),
             ],
           ),
           actions: [
@@ -585,13 +872,8 @@ class _GoalListSectionState extends State<GoalListSection> {
             TextButton(
               onPressed: () {
                 final title = titleController.text.trim();
-                final progressText = progressController.text.trim();
-                int progress = int.tryParse(progressText) ?? 0;
-                if (progress < 0) progress = 0;
-                if (progress > 100) progress = 100;
                 Navigator.pop(context, {
                   'title': title,
-                  'progress': progress,
                   'steps': <Map<String, dynamic>>[],
                 });
               },
@@ -611,7 +893,7 @@ class _GoalListSectionState extends State<GoalListSection> {
           'title': result['title'],
           'subNotes': <Map<String, dynamic>>[],
           'steps': result['steps'] ?? <Map<String, dynamic>>[],
-          'progress': result['progress'] ?? 0,
+          'progress': 0,
         });
         widget.onItemsChanged(updatedItems);
       });
