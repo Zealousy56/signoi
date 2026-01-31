@@ -98,7 +98,7 @@ class _GoalListSectionState extends State<GoalListSection> {
     if (value is List) {
       return value
           .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item as Map))
+          .map((item) => Map<String, dynamic>.from(item))
           .toList();
     }
     return <Map<String, dynamic>>[];
@@ -308,7 +308,7 @@ class _GoalListSectionState extends State<GoalListSection> {
                 : null,
             child: Container(
               color: isSelected
-                  ? Colors.blue.withOpacity(0.3)
+                  ? const Color.fromARGB(77, 33, 150, 243)
                   : Colors.transparent,
               padding: const EdgeInsets.symmetric(vertical: 2.0, horizontal: 4.0),
               child: Row(

@@ -15,7 +15,35 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(fontFamily: 'Highway Gothic'),
+      theme: ThemeData(
+        fontFamily: 'Highway Gothic',
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFFDCCCB2),
+          brightness: Brightness.light,
+        ),
+        scaffoldBackgroundColor: const Color(0xFFF6F1E8),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFF1E6D6),
+          foregroundColor: Colors.black,
+          elevation: 0,
+        ),
+        bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+          backgroundColor: Color(0xFFF1E6D6),
+          selectedItemColor: Colors.black87,
+          unselectedItemColor: Colors.black45,
+        ),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: Color(0xFFE6D5BF),
+          foregroundColor: Colors.black,
+        ),
+        dialogTheme: const DialogThemeData(
+          backgroundColor: Color(0xFFFAF5EC),
+        ),
+        cardTheme: const CardThemeData(
+          color: Color(0xFFFAF5EC),
+        ),
+        useMaterial3: true,
+      ),
       
       home: const RootPage(),
     );
