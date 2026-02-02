@@ -61,7 +61,27 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   void _completeHomeCard(int index, int completedCount) {
     if (_completingHomeCards.contains(index)) return;
-    widget.onExperienceEarned(completedCount * 0.05);
+    final sourceType = _items[index]['_sourceType'] as String?;
+    final sourceIndex = _items[index]['_sourceIndex'] as int?;
+    final isGoalSource = sourceType != null && sourceType != 'none' && sourceIndex != null;
+
+    if (isGoalSource) {
+      widget.onExperienceEarned(0.10);
+
+      final sourceGoals = sourceType == 'longTerm' ? _sharedItems : _shortTermItems;
+      if (sourceIndex >= 0 && sourceIndex < sourceGoals.length) {
+        final currentStock = (sourceGoals[sourceIndex]['stockProgress'] as num?)?.toDouble() ?? 0.0;
+        final updatedStock = currentStock + 0.10;
+        sourceGoals[sourceIndex]['stockProgress'] = updatedStock;
+
+        if (sourceType == 'longTerm') {
+          widget.onSharedItemsChanged(sourceGoals);
+        } else {
+          widget.onShortTermItemsChanged(sourceGoals);
+        }
+      }
+    }
+
     setState(() {
       _completingHomeCards.add(index);
     });
@@ -900,11 +920,13 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               'subNotes': sourceGoals[goalIndex]['subNotes'],
               'steps': sourceGoals[goalIndex]['steps'] ?? [],
               'progress': sourceGoals[goalIndex]['progress'] ?? 0,
+              'stockProgress': sourceGoals[goalIndex]['stockProgress'] ?? 0.0,
             });
           } else {
             // Update the reference item
             final index = _items.indexOf(goalItem);
             _items[index]['subNotes'] = sourceGoals[goalIndex]['subNotes'];
+            _items[index]['stockProgress'] = sourceGoals[goalIndex]['stockProgress'] ?? 0.0;
           }
 
           widget.onItemsChanged(_items);

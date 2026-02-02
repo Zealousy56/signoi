@@ -29,7 +29,6 @@ class _ProgressPageState extends State<ProgressPage> {
   double _previousDisplayExperience = 0.0;
   bool _pendingExperienceAnimation = false;
   TabController? _tabController;
-  static const double _expPerGoal = 0.25;
 
   @override
   void initState() {
@@ -73,8 +72,8 @@ class _ProgressPageState extends State<ProgressPage> {
     }
   }
 
-  void _addExperience() {
-    widget.onExperienceEarned(_expPerGoal);
+  void _addExperience([double stockBonus = 0.0]) {
+    widget.onExperienceEarned(stockBonus);
   }
 
   void _onProgressAnimationEnd() {
@@ -199,6 +198,7 @@ class _LevelIndicator extends StatelessWidget {
           builder: (context, value, child) {
             final clamped = value.clamp(0.0, 1.0);
             final bool isEmpty = clamped <= 0.0;
+            final percent = (clamped * 100).round();
 
             Widget icon = const Icon(
               Icons.signal_cellular_4_bar,
@@ -226,7 +226,34 @@ class _LevelIndicator extends StatelessWidget {
               );
             }
 
-            return icon;
+            const iconSize = 320.0;
+            final x = (iconSize * clamped).clamp(0.0, iconSize);
+            final y = (iconSize * 0.78) - (iconSize * 0.45 * clamped);
+            return SizedBox(
+              width: iconSize,
+              height: iconSize,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  icon,
+                  Positioned(
+                    left: (x - 18).clamp(0.0, iconSize - 36),
+                    top: (y + 10).clamp(0.0, iconSize - 28),
+                    child: Transform.rotate(
+                      angle: -0.72,
+                      child: Text(
+                        '$percent%',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
           },
         ),
         const SizedBox(height: 8),
@@ -248,7 +275,7 @@ class GoalListSection extends StatefulWidget {
   final String title;
   final List<Map<String, dynamic>> items;
   final Function(List<Map<String, dynamic>>) onItemsChanged;
-  final VoidCallback onGoalCompleted;
+  final void Function(double) onGoalCompleted;
 
   const GoalListSection({
     super.key,
@@ -584,7 +611,8 @@ class _GoalListSectionState extends State<GoalListSection> with TickerProviderSt
     if (_completingCards.contains(index)) {
       return;
     }
-    widget.onGoalCompleted();
+    final stockBonus = (item['stockProgress'] as num?)?.toDouble() ?? 0.0;
+    widget.onGoalCompleted(stockBonus);
     setState(() {
       _completingCards.add(index);
     });
@@ -908,6 +936,7 @@ class _GoalListSectionState extends State<GoalListSection> with TickerProviderSt
           'subNotes': <Map<String, dynamic>>[],
           'steps': result['steps'] ?? <Map<String, dynamic>>[],
           'progress': 0,
+          'stockProgress': 0.0,
         });
         widget.onItemsChanged(updatedItems);
       });

@@ -86,9 +86,9 @@ class _RootPageState extends State<RootPage> {
   void _addExperience(double amount) {
     setState(() {
       _experience += amount;
-      if (_experience >= 1.0) {
+      while (_experience >= 1.0) {
         _level += 1;
-        _experience = 0.01;
+        _experience = (_experience - 1.0) + 0.10;
       }
     });
   }
@@ -120,7 +120,10 @@ class _RootPageState extends State<RootPage> {
     ];
 
     return Scaffold(
-      body: pages[_currentIndex],
+      body: IndexedStack(
+        index: _currentIndex,
+        children: pages,
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: _onTap,
