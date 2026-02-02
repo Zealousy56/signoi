@@ -5,6 +5,9 @@ class ProgressPage extends StatefulWidget {
   final Function(List<Map<String, dynamic>>) onItemsChanged;
   final List<Map<String, dynamic>> shortTermItems;
   final Function(List<Map<String, dynamic>>) onShortTermItemsChanged;
+  final int level;
+  final double experience;
+  final void Function(double) onExperienceEarned;
 
   const ProgressPage({
     super.key,
@@ -12,6 +15,9 @@ class ProgressPage extends StatefulWidget {
     required this.onItemsChanged,
     required this.shortTermItems,
     required this.onShortTermItemsChanged,
+    required this.level,
+    required this.experience,
+    required this.onExperienceEarned,
   });
 
   @override
@@ -19,13 +25,34 @@ class ProgressPage extends StatefulWidget {
 }
 
 class _ProgressPageState extends State<ProgressPage> {
-  int _level = 1;
-  double _experience = 0.0;
   double _displayExperience = 0.0;
   double _previousDisplayExperience = 0.0;
   bool _pendingExperienceAnimation = false;
   TabController? _tabController;
   static const double _expPerGoal = 0.25;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayExperience = widget.experience;
+    _previousDisplayExperience = widget.experience;
+  }
+
+  @override
+  void didUpdateWidget(covariant ProgressPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.experience != oldWidget.experience) {
+      final onProgressTab = _tabController != null && _tabController!.index == 1;
+      if (onProgressTab) {
+        setState(() {
+          _previousDisplayExperience = _displayExperience;
+          _displayExperience = widget.experience;
+        });
+      } else {
+        _pendingExperienceAnimation = true;
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -39,7 +66,7 @@ class _ProgressPageState extends State<ProgressPage> {
       if (_pendingExperienceAnimation) {
         setState(() {
           _previousDisplayExperience = _displayExperience;
-          _displayExperience = _experience;
+          _displayExperience = widget.experience;
           _pendingExperienceAnimation = false;
         });
       }
@@ -47,20 +74,7 @@ class _ProgressPageState extends State<ProgressPage> {
   }
 
   void _addExperience() {
-    setState(() {
-      _experience += _expPerGoal;
-      if (_experience >= 1.0) {
-        _level += 1;
-        _experience = 0.01;
-      }
-      final onProgressTab = _tabController != null && _tabController!.index == 1;
-      if (onProgressTab) {
-        _previousDisplayExperience = _displayExperience;
-        _displayExperience = _experience;
-      } else {
-        _pendingExperienceAnimation = true;
-      }
-    });
+    widget.onExperienceEarned(_expPerGoal);
   }
 
   void _onProgressAnimationEnd() {
@@ -141,8 +155,8 @@ class _ProgressPageState extends State<ProgressPage> {
                 ),
                 Center(
                   child: _LevelIndicator(
-                    level: _level,
-                    experience: _level == 1 && _displayExperience == 0.0 ? 0.0 : _displayExperience,
+                    level: widget.level,
+                    experience: widget.level == 1 && _displayExperience == 0.0 ? 0.0 : _displayExperience,
                     previousExperience: _previousDisplayExperience,
                     onAnimationEnd: _onProgressAnimationEnd,
                   ),

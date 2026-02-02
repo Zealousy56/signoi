@@ -62,6 +62,8 @@ class _RootPageState extends State<RootPage> {
   List<Map<String, dynamic>> _sharedItems = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _shortTermItems = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _homePageItems = <Map<String, dynamic>>[]; // Items displayed on home page
+  int _level = 1;
+  double _experience = 0.0;
 
   void _updateSharedItems(List<Map<String, dynamic>> newItems) {
     setState(() {
@@ -81,6 +83,16 @@ class _RootPageState extends State<RootPage> {
     });
   }
 
+  void _addExperience(double amount) {
+    setState(() {
+      _experience += amount;
+      if (_experience >= 1.0) {
+        _level += 1;
+        _experience = 0.01;
+      }
+    });
+  }
+
   void _onTap(int index) => setState(() => _currentIndex = index);
 
   @override
@@ -93,6 +105,7 @@ class _RootPageState extends State<RootPage> {
         onShortTermItemsChanged: _updateShortTermItems,
         sharedItems: _sharedItems,
         onSharedItemsChanged: _updateSharedItems,
+        onExperienceEarned: _addExperience,
       ),
       const NoisePage(),
       ProgressPage(
@@ -100,6 +113,9 @@ class _RootPageState extends State<RootPage> {
         onItemsChanged: _updateSharedItems,
         shortTermItems: _shortTermItems,
         onShortTermItemsChanged: _updateShortTermItems,
+        level: _level,
+        experience: _experience,
+        onExperienceEarned: _addExperience,
       ),
     ];
 
