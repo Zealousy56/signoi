@@ -139,7 +139,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: baseColor.withOpacity(0.65),
+                  color: baseColor.withAlpha((0.65 * 255).round()),
                   blurRadius: 14 * glow,
                   spreadRadius: 2 * glow,
                   offset: const Offset(0, 2),
@@ -681,42 +681,33 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
           builder: (context, setDialogState) {
             return AlertDialog(
               title: const Text('Select goal type'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Add task to:'),
-                  const SizedBox(height: 16),
-                  RadioListTile<String>(
-                    title: const Text('Long-term goal'),
-                    value: 'longTerm',
-                    groupValue: selectedCategory,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedCategory = value!;
-                      });
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('Short-term goal'),
-                    value: 'shortTerm',
-                    groupValue: selectedCategory,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedCategory = value!;
-                      });
-                    },
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('General tasks'),
-                    value: 'none',
-                    groupValue: selectedCategory,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedCategory = value!;
-                      });
-                    },
-                  ),
-                ],
+              content: RadioGroup<String>(
+                groupValue: selectedCategory,
+                onChanged: (value) {
+                  if (value == null) return;
+                  setDialogState(() {
+                    selectedCategory = value;
+                  });
+                },
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Add task to:'),
+                    const SizedBox(height: 16),
+                    const RadioListTile<String>(
+                      title: Text('Long-term goal'),
+                      value: 'longTerm',
+                    ),
+                    const RadioListTile<String>(
+                      title: Text('Short-term goal'),
+                      value: 'shortTerm',
+                    ),
+                    const RadioListTile<String>(
+                      title: Text('General tasks'),
+                      value: 'none',
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -803,27 +794,29 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   ),
                   const SizedBox(height: 16),
                   const Text('Task type:', style: TextStyle(fontWeight: FontWeight.bold)),
-                  RadioListTile<String>(
-                    title: const Text('Daily'),
-                    subtitle: const Text('Repeats every day'),
-                    value: 'daily',
+                  RadioGroup<String>(
                     groupValue: selectedTaskType,
                     onChanged: (value) {
+                      if (value == null) return;
                       setDialogState(() {
-                        selectedTaskType = value!;
+                        selectedTaskType = value;
                       });
                     },
-                  ),
-                  RadioListTile<String>(
-                    title: const Text('Temporary'),
-                    subtitle: const Text('One-time task'),
-                    value: 'temporary',
-                    groupValue: selectedTaskType,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        selectedTaskType = value!;
-                      });
-                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: const [
+                        RadioListTile<String>(
+                          title: Text('Daily'),
+                          subtitle: Text('Repeats every day'),
+                          value: 'daily',
+                        ),
+                        RadioListTile<String>(
+                          title: Text('Temporary'),
+                          subtitle: Text('One-time task'),
+                          value: 'temporary',
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),

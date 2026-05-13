@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:signoi/pages/home.dart';
 import 'package:signoi/pages/noise.dart';
 import 'package:signoi/pages/progress.dart';
+import 'package:signoi/services/persistence_service.dart';
 
-void main() {
+late PersistenceService persistenceService;
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  persistenceService = PersistenceService();
+  await persistenceService.init();
   runApp(const MyApp());
 }
 
@@ -59,28 +64,66 @@ class RootPage extends StatefulWidget {
 
 class _RootPageState extends State<RootPage> {
   int _currentIndex = 0;
+  List<String> _noiseItems = <String>[];
   List<Map<String, dynamic>> _sharedItems = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _shortTermItems = <Map<String, dynamic>>[];
   List<Map<String, dynamic>> _homePageItems = <Map<String, dynamic>>[]; // Items displayed on home page
   int _level = 1;
   double _experience = 0.0;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final noiseItems = await persistenceService.getNoiseItems();
+    final sharedItems = await persistenceService.getSharedItems();
+    final shortTermItems = await persistenceService.getShortTermItems();
+    final homePageItems = await persistenceService.getHomePageItems();
+    final level = await persistenceService.getLevel();
+    final experience = await persistenceService.getExperience();
+
+    if (!mounted) return;
+    setState(() {
+      _noiseItems = noiseItems;
+      _sharedItems = sharedItems;
+      _shortTermItems = shortTermItems;
+      _homePageItems = homePageItems;
+      _level = level;
+      _experience = experience;
+      _isLoading = false;
+    });
+  }
+
+  void _updateNoiseItems(List<String> newItems) {
+    setState(() {
+      _noiseItems = newItems;
+    });
+    persistenceService.saveNoiseItems(newItems);
+  }
 
   void _updateSharedItems(List<Map<String, dynamic>> newItems) {
     setState(() {
       _sharedItems = newItems;
     });
+    persistenceService.saveSharedItems(newItems);
   }
 
   void _updateShortTermItems(List<Map<String, dynamic>> newItems) {
     setState(() {
       _shortTermItems = newItems;
     });
+    persistenceService.saveShortTermItems(newItems);
   }
 
   void _updateHomePageItems(List<Map<String, dynamic>> newItems) {
     setState(() {
       _homePageItems = newItems;
     });
+    persistenceService.saveHomePageItems(newItems);
   }
 
   void _addExperience(double amount) {
@@ -91,12 +134,20 @@ class _RootPageState extends State<RootPage> {
         _experience = (_experience - 1.0) + 0.10;
       }
     });
+    persistenceService.saveLevel(_level);
+    persistenceService.saveExperience(_experience);
   }
 
   void _onTap(int index) => setState(() => _currentIndex = index);
 
   @override
-  Widget build(BuildContext context) { 
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final List<Widget> pages = <Widget>[
       HomePage(
         items: _homePageItems,
@@ -107,7 +158,10 @@ class _RootPageState extends State<RootPage> {
         onSharedItemsChanged: _updateSharedItems,
         onExperienceEarned: _addExperience,
       ),
-      const NoisePage(),
+      NoisePage(
+        items: _noiseItems,
+        onItemsChanged: _updateNoiseItems,
+      ),
       ProgressPage(
         items: _sharedItems,
         onItemsChanged: _updateSharedItems,

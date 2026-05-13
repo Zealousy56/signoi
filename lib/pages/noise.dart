@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 
 class NoisePage extends StatefulWidget {
-  const NoisePage({super.key});
+  final List<String> items;
+  final void Function(List<String>) onItemsChanged;
+
+  const NoisePage({
+    super.key,
+    required this.items,
+    required this.onItemsChanged,
+  });
 
   @override
   State<NoisePage> createState() => _NoisePageState();
 }
 
 class _NoisePageState extends State<NoisePage> {
-  final List<String> _items = List.generate(12, (i) => 'Noise ${i + 1}');
   final Set<int> _expandedCards = {};
+
   Future<void> _addItem() async {
     final result = await showDialog<String?>(
       context: context,
@@ -25,11 +32,11 @@ class _NoisePageState extends State<NoisePage> {
         );
       },
     );
+
     if (!mounted) return;
     if (result != null && result.isNotEmpty) {
-      setState(() {
-        _items.insert(0, result);
-      });
+      final updatedItems = [result, ...widget.items];
+      widget.onItemsChanged(updatedItems);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Added Noise: $result')),
       );
@@ -65,11 +72,11 @@ class _NoisePageState extends State<NoisePage> {
       ),
       body: ListView.separated(
         padding: const EdgeInsets.symmetric(vertical: 12.0, horizontal: 12.0),
-        itemCount: _items.length,
+        itemCount: widget.items.length,
         separatorBuilder: (context, index) => const SizedBox(height: 8),
         itemBuilder: (context, index) {
           final itemNumber = index + 1;
-          final itemText = _items[index];
+          final itemText = widget.items[index];
           return Padding(
             padding: const EdgeInsets.symmetric(vertical: 4.0),
             child: InkWell(
@@ -143,8 +150,10 @@ class _NoisePageState extends State<NoisePage> {
                                 },
                               );
                               if (shouldDelete == true) {
+                                final updatedItems = List<String>.from(widget.items)
+                                  ..removeAt(index);
+                                widget.onItemsChanged(updatedItems);
                                 setState(() {
-                                  _items.removeAt(index);
                                   _expandedCards.remove(index);
                                 });
                               }
