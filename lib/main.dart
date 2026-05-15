@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:signoi/pages/goals.dart';
 import 'package:signoi/pages/home.dart';
 import 'package:signoi/pages/noise.dart';
 import 'package:signoi/pages/progress.dart';
@@ -162,14 +163,16 @@ class _RootPageState extends State<RootPage> {
         items: _noiseItems,
         onItemsChanged: _updateNoiseItems,
       ),
-      ProgressPage(
+      GoalsPage(
         items: _sharedItems,
         onItemsChanged: _updateSharedItems,
         shortTermItems: _shortTermItems,
         onShortTermItemsChanged: _updateShortTermItems,
+        onExperienceEarned: _addExperience,
+      ),
+      ProgressPage(
         level: _level,
         experience: _experience,
-        onExperienceEarned: _addExperience,
       ),
     ];
 
@@ -184,6 +187,7 @@ class _RootPageState extends State<RootPage> {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.wifi), label: 'Signal'),
           BottomNavigationBarItem(icon: Icon(Icons.graphic_eq), label: 'Noise'),
+          BottomNavigationBarItem(icon: Icon(Icons.flag), label: 'Goals'),
           BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: 'Progress'),
         ],
       ),
