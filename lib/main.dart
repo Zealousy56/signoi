@@ -173,6 +173,7 @@ class _RootPageState extends State<RootPage> {
       ProgressPage(
         level: _level,
         experience: _experience,
+        isActive: _currentIndex == 3,
       ),
     ];
 

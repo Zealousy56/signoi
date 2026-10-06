@@ -3,46 +3,140 @@ import 'package:flutter/material.dart';
 class ProgressPage extends StatefulWidget {
   final int level;
   final double experience;
+  final bool isActive;
 
   const ProgressPage({
     super.key,
     required this.level,
     required this.experience,
+    required this.isActive,
   });
 
   @override
   State<ProgressPage> createState() => _ProgressPageState();
 }
 
-class _ProgressPageState extends State<ProgressPage> {
-  double _displayExperience = 0.0;
-  double _previousDisplayExperience = 0.0;
+class _ProgressPageState extends State<ProgressPage>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _animationController;
+  late Tween<double> _experienceTween;
+  late double _displayExperience;
+  late int _displayLevel;
+  double _targetExperience = 0.0;
+  double _levelUpStartExperience = 0.0;
+  bool _isLevelUpFilling = false;
+  bool _isLevelUpRising = false;
+
+  double get _animatedExperience {
+    if (_isLevelUpFilling) {
+      return _interpolateExperience(
+        _levelUpStartExperience,
+        1.0,
+        _animationController.value,
+      );
+    }
+    if (_isLevelUpRising) {
+      return _interpolateExperience(
+        0.0,
+        _targetExperience,
+        _animationController.value,
+      );
+    }
+    return _experienceTween.transform(
+      Curves.easeInOut.transform(_animationController.value),
+    );
+  }
+
+  double _interpolateExperience(double start, double end, double progress) {
+    return Tween<double>(begin: start, end: end).transform(
+      Curves.easeInOut.transform(progress.clamp(0.0, 1.0)),
+    );
+  }
 
   @override
   void initState() {
     super.initState();
     _displayExperience = widget.experience;
-    _previousDisplayExperience = widget.experience;
+    _displayLevel = widget.level;
+    _targetExperience = widget.experience;
+    _experienceTween = Tween<double>(
+      begin: widget.experience,
+      end: widget.experience,
+    );
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..addStatusListener(_handleAnimationStatus);
   }
 
   @override
   void didUpdateWidget(covariant ProgressPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.experience != oldWidget.experience) {
-      setState(() {
-        _previousDisplayExperience = _displayExperience;
-        _displayExperience = widget.experience;
-      });
+    if (widget.isActive &&
+        (widget.level != _displayLevel ||
+            widget.experience != _displayExperience)) {
+      if (widget.level != _displayLevel) {
+        _startLevelUpAnimation(widget.experience);
+      } else {
+        _startExperienceAnimation(widget.experience);
+      }
     }
   }
 
-  void _onProgressAnimationEnd() {
-    if (!mounted) return;
-    if (_previousDisplayExperience != _displayExperience) {
+  void _startExperienceAnimation(double target) {
+    final currentExperience = _animatedExperience;
+    _isLevelUpFilling = false;
+    _isLevelUpRising = false;
+    _animationController.duration = const Duration(milliseconds: 900);
+    _targetExperience = target;
+    _experienceTween = Tween<double>(
+      begin: currentExperience,
+      end: target,
+    );
+    _animationController.forward(from: 0.0);
+  }
+
+  void _startLevelUpAnimation(double target) {
+    _levelUpStartExperience = _animatedExperience;
+    _isLevelUpFilling = true;
+    _isLevelUpRising = false;
+    _displayLevel = widget.level;
+    _targetExperience = target;
+    _animationController.duration = const Duration(milliseconds: 900);
+    _animationController.forward(from: 0.0);
+  }
+
+  void _handleAnimationStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    if (_isLevelUpFilling) {
       setState(() {
-        _previousDisplayExperience = _displayExperience;
+        _isLevelUpFilling = false;
+        _isLevelUpRising = true;
+        _experienceTween = Tween<double>(
+          begin: 0.0,
+          end: _targetExperience,
+        );
       });
+      _animationController.forward(from: 0.0);
+      return;
     }
+
+    setState(() {
+      _isLevelUpFilling = false;
+      _isLevelUpRising = false;
+      _displayExperience = _targetExperience;
+      _experienceTween = Tween<double>(
+        begin: _targetExperience,
+        end: _targetExperience,
+      );
+      _animationController.duration = const Duration(milliseconds: 900);
+    });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   @override
@@ -73,13 +167,14 @@ class _ProgressPageState extends State<ProgressPage> {
         ],
       ),
       body: Center(
-        child: _LevelIndicator(
-          level: widget.level,
-          experience: widget.level == 1 && _displayExperience == 0.0
-              ? 0.0
-              : _displayExperience,
-          previousExperience: _previousDisplayExperience,
-          onAnimationEnd: _onProgressAnimationEnd,
+        child: AnimatedBuilder(
+          animation: _animationController,
+          builder: (context, child) => _LevelIndicator(
+            level: _displayLevel,
+            experience: _displayLevel == 1 && _animatedExperience == 0.0
+                ? 0.0
+                : _animatedExperience,
+          ),
         ),
       ),
     );
@@ -89,14 +184,10 @@ class _ProgressPageState extends State<ProgressPage> {
 class _LevelIndicator extends StatelessWidget {
   final int level;
   final double experience;
-  final double previousExperience;
-  final VoidCallback onAnimationEnd;
 
   const _LevelIndicator({
     required this.level,
     required this.experience,
-    required this.previousExperience,
-    required this.onAnimationEnd,
   });
 
   @override
@@ -104,16 +195,9 @@ class _LevelIndicator extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        TweenAnimationBuilder<double>(
-          tween: Tween<double>(
-            begin: previousExperience.clamp(0.0, 1.0),
-            end: experience.clamp(0.0, 1.0),
-          ),
-          duration: const Duration(milliseconds: 900),
-          curve: Curves.easeInOut,
-          onEnd: onAnimationEnd,
-          builder: (context, value, child) {
-            final clamped = value.clamp(0.0, 1.0);
+        Builder(
+          builder: (context) {
+            final clamped = experience.clamp(0.0, 1.0);
             final bool isEmpty = clamped <= 0.0;
             final percent = (clamped * 100).round();
 
@@ -145,7 +229,7 @@ class _LevelIndicator extends StatelessWidget {
 
             const iconSize = 320.0;
             final x = (iconSize * clamped).clamp(0.0, iconSize);
-            final y = (iconSize * 0.78) - (iconSize * 0.45 * clamped);
+            final y = (iconSize * 0.8) - (iconSize * 1 * clamped);
             return SizedBox(
               width: iconSize,
               height: iconSize,
@@ -154,10 +238,10 @@ class _LevelIndicator extends StatelessWidget {
                 children: [
                   icon,
                   Positioned(
-                    left: (x - 18).clamp(0.0, iconSize - 36),
-                    top: (y + 10).clamp(0.0, iconSize - 28),
+                    left: (x - 20).clamp(0.0, iconSize - 36),
+                    top: (y + 40).clamp(0.0, iconSize - 28),
                     child: Transform.rotate(
-                      angle: -0.72,
+                      angle: -0.77 ,
                       child: Text(
                         '$percent%',
                         style: const TextStyle(

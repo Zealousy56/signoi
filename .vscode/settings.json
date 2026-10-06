@@ -1,5 +1,10 @@
 {
     "chat.tools.terminal.autoApprove": {
-        "Get-Command": true
+        "Get-Command": true,
+        "&": true,
+        "/^\\.\\\\android\\\\gradlew\\.bat -p android --version$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

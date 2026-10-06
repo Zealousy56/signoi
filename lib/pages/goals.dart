@@ -420,7 +420,7 @@ class _GoalListSectionState extends State<GoalListSection> with TickerProviderSt
       return;
     }
     final stockBonus = (item['stockProgress'] as num?)?.toDouble() ?? 0.0;
-    widget.onGoalCompleted(stockBonus);
+    widget.onGoalCompleted(stockBonus > 0.0 ? stockBonus : 0.3);
     setState(() {
       _completingCards.add(index);
     });
